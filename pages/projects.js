@@ -101,7 +101,25 @@ export default function Projects() {
       <Head>
         <title>Projects - Bright Mind Vision</title>
         <meta name="description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
+        <meta name="keywords" content="AI projects, machine learning projects, blockchain AI, conversational AI, e-commerce AI, smart contracts, ULALO, AI portfolio" />
+        <meta name="author" content="Bright Mind Vision" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content="Projects - Bright Mind Vision" />
+        <meta property="og:description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://brightmindvision.com/projects" />
+        <meta property="og:image" content="https://brightmindvision.com/bmv-logo.png" />
+        
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Projects - Bright Mind Vision" />
+        <meta name="twitter:description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
+        <meta name="twitter:image" content="https://brightmindvision.com/bmv-logo.png" />
+        
         <link rel="icon" href="/bmv_favicon.png" />
+        <link rel="canonical" href="https://brightmindvision.com/projects" />
       </Head>
 
       <Header />
@@ -109,8 +127,18 @@ export default function Projects() {
       <main>
         {/* Hero Section */}
         <section className="hero">
-          <h1>Our AI Projects</h1>
-          <p>Explore our portfolio of cutting-edge AI solutions that have transformed businesses across various industries. From e-commerce personalization to blockchain security, we deliver innovative AI technologies that drive real results.</p>
+          <div className="hero-content">
+            <div className="hero-logo">
+              <img src="/bmv-logo-hero.png" alt="Bright Mind Vision" className="hero-logo-image" />
+            </div>
+            <h1 className="hero-title">Our AI Projects</h1>
+            <p className="hero-subtitle">Explore our portfolio of cutting-edge AI solutions</p>
+            <p className="hero-description">From e-commerce personalization to blockchain security, we deliver innovative AI technologies that have transformed businesses across various industries and drive real results.</p>
+            <div className="hero-actions">
+              <a href="/#services" className="cta-button primary">Our Services</a>
+              <a href="/#contact" className="cta-button secondary">Get In Touch</a>
+            </div>
+          </div>
         </section>
 
         {/* Projects Grid */}
@@ -171,18 +199,49 @@ export default function Projects() {
         </section>
 
         {/* CTA Section */}
-        <section className="section" style={{ textAlign: 'center', background: '#f8fafc' }}>
-          <h2>Ready to Start Your AI Project?</h2>
-          <p style={{ fontSize: '1.2rem', marginBottom: '2rem', color: '#4a5568' }}>
-            Let's discuss how we can help transform your business with cutting-edge AI solutions.
-          </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href="/#contact" className="cta-button">
-              Get Started
-            </a>
-            <a href="mailto:info@brightmindvision.com" className="cta-button" style={{ background: '#667eea', color: 'white' }}>
-              Contact Us
-            </a>
+        <section className="contact-section">
+          <div className="contact-content">
+            <div className="contact-header">
+              <h2>Ready to Start Your AI Project?</h2>
+              <p className="contact-subtitle">
+                Let's discuss how we can help transform your business with cutting-edge AI solutions.
+              </p>
+            </div>
+            
+            <div className="contact-methods">
+              <div className="contact-card">
+                <div className="contact-icon">📧</div>
+                <h3>Email Us</h3>
+                <p>Get in touch for project inquiries and consultations</p>
+                <a href="mailto:contact@brightmindvision.com" className="contact-link">
+                  contact@brightmindvision.com
+                </a>
+              </div>
+              
+              <div className="contact-card">
+                <div className="contact-icon">📞</div>
+                <h3>Call Us</h3>
+                <p>Speak directly with our AI experts</p>
+                <a href="tel:+919554024428" className="contact-link">
+                  +91 95540 24428
+                </a>
+              </div>
+              
+              <div className="contact-card">
+                <div className="contact-icon">💬</div>
+                <h3>WhatsApp Chat</h3>
+                <p>Start a conversation about your AI needs</p>
+                <a href="https://wa.me/919554024428?text=Hi%20Bright%20Mind%20Vision,%20I%27m%20interested%20in%20your%20AI%20services" target="_blank" rel="noopener noreferrer" className="contact-link whatsapp-link">
+                  Chat on WhatsApp
+                </a>
+              </div>
+            </div>
+            
+            <div className="contact-cta">
+              <a href="mailto:contact@brightmindvision.com" className="cta-button primary">
+                Get Started Today
+              </a>
+            </div>
           </div>
         </section>
       </main>
