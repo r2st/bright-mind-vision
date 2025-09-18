@@ -16,7 +16,8 @@ export default async function handler(req, res) {
     if (isDevelopment) {
       // For development, create a test transporter that doesn't actually send emails
       console.log('🔧 Development mode: Simulating email sending...');
-      console.log('📧 Would send email to:', process.env.SMTP_USER || 'contact@brightmindvision.com');
+      console.log('📧 Would send email to business:', process.env.SMTP_USER || 'contact@brightmindvision.com');
+      console.log('📧 Would send email to client:', email);
       console.log('📧 Would send email from:', process.env.SMTP_USER || 'contact@brightmindvision.com');
       
       // Simulate email sending
@@ -30,16 +31,26 @@ export default async function handler(req, res) {
       return;
     }
     
-    // Create transporter for production (Zoho Mail or any SMTP provider)
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.zoho.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false, // true for 465, false for other ports
+    // Create transporter for production (Zoho Mail Pro or any SMTP provider)
+    const smtpConfig = {
+      host: process.env.SMTP_HOST || 'smtppro.zoho.in',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false, // true for 465, false for other ports (587 uses TLS)
       auth: {
         user: process.env.SMTP_USER || 'contact@brightmindvision.com',
         pass: process.env.SMTP_PASS || 'your-app-password'
       }
+    };
+    
+    console.log('SMTP Config:', {
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      user: smtpConfig.auth.user,
+      hasPassword: !!smtpConfig.auth.pass
     });
+    
+    transporter = nodemailer.createTransport(smtpConfig);
 
     // Format the date for better readability (handle timezone properly)
     const dateObj = new Date(date + 'T00:00:00'); // Ensure we're working with local date
@@ -137,11 +148,27 @@ export default async function handler(req, res) {
     console.error('Error details:', {
       message: error.message,
       code: error.code,
-      response: error.response
+      response: error.response,
+      command: error.command,
+      responseCode: error.responseCode
     });
+    
+    // More detailed error information for debugging
+    let errorMessage = 'Failed to send booking request';
+    if (error.code === 'EAUTH') {
+      errorMessage = 'Email authentication failed. Please check your email credentials.';
+    } else if (error.code === 'ECONNECTION') {
+      errorMessage = 'Could not connect to email server. Please check your SMTP settings.';
+    } else if (error.code === 'ETIMEDOUT') {
+      errorMessage = 'Email server connection timed out.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     res.status(500).json({ 
-      message: 'Failed to send booking request',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: process.env.NODE_ENV === 'development' ? error.code : undefined
     });
   }
 }
