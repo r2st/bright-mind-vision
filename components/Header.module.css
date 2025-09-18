@@ -16,7 +16,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 70px;
+  height: 90px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logoImage {
+  height: 80px;
+  width: auto;
 }
 
 .logo h1 {
@@ -65,6 +76,10 @@
   
   .navLink {
     font-size: 0.9rem;
+  }
+  
+  .logoImage {
+    height: 60px;
   }
   
   .logo h1 {

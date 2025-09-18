@@ -8,7 +8,7 @@ export default function Home() {
       <Head>
         <title>Bright Mind Vision - AI Software Solutions</title>
         <meta name="description" content="Empowering businesses with cutting-edge AI solutions, machine learning, and intelligent automation." />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/bmv_favicon.png" />
       </Head>
 
       <Header />
@@ -58,6 +58,129 @@ export default function Home() {
           </div>
         </section>
 
+        {/* LLM Technologies Section */}
+        <section className="section" style={{ background: '#f8fafc' }}>
+          <h2>LLM Technologies & Business Solutions</h2>
+          <div className="llm-content">
+            <div className="llm-intro">
+              <h3>Harnessing the Power of Large Language Models</h3>
+              <p>
+                Large Language Models (LLMs) represent a revolutionary breakthrough in artificial intelligence, 
+                enabling businesses to automate complex tasks, enhance customer experiences, and unlock new 
+                opportunities for growth. At Bright Mind Vision, we specialize in implementing cutting-edge 
+                LLM technologies to solve real-world business challenges.
+              </p>
+            </div>
+            
+            <div className="llm-grid">
+              <div className="llm-card">
+                <div className="llm-icon">🤖</div>
+                <h4>Intelligent Automation</h4>
+                <p>Deploy LLMs to automate document processing, content generation, and routine business tasks, reducing operational costs by up to 60%.</p>
+                <ul>
+                  <li>Automated report generation and analysis</li>
+                  <li>Intelligent document classification and extraction</li>
+                  <li>Smart email and communication automation</li>
+                  <li>Workflow optimization and process streamlining</li>
+                </ul>
+              </div>
+              
+              <div className="llm-card">
+                <div className="llm-icon">💬</div>
+                <h4>Advanced Conversational AI</h4>
+                <p>Create sophisticated chatbots and virtual assistants that understand context, maintain conversations, and provide personalized customer support.</p>
+                <ul>
+                  <li>24/7 multilingual customer support</li>
+                  <li>Context-aware conversation management</li>
+                  <li>Personalized product recommendations</li>
+                  <li>Intelligent lead qualification and nurturing</li>
+                </ul>
+              </div>
+              
+              <div className="llm-card">
+                <div className="llm-icon">📊</div>
+                <h4>Data Intelligence & Analytics</h4>
+                <p>Transform unstructured data into actionable insights using LLMs for advanced text analysis, sentiment analysis, and predictive modeling.</p>
+                <ul>
+                  <li>Advanced sentiment analysis and market research</li>
+                  <li>Intelligent data extraction from multiple sources</li>
+                  <li>Predictive analytics and trend forecasting</li>
+                  <li>Automated business intelligence reporting</li>
+                </ul>
+              </div>
+              
+              <div className="llm-card">
+                <div className="llm-icon">🎯</div>
+                <h4>Content & Marketing Solutions</h4>
+                <p>Leverage LLMs for content creation, marketing automation, and personalized customer experiences that drive engagement and conversions.</p>
+                <ul>
+                  <li>Automated content generation and optimization</li>
+                  <li>Personalized marketing campaigns</li>
+                  <li>SEO-optimized content creation</li>
+                  <li>Multilingual content localization</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="llm-technologies">
+              <h3>Our LLM Technology Stack</h3>
+              <div className="tech-stack">
+                <div className="tech-category">
+                  <h4>Foundation Models</h4>
+                  <div className="tech-tags">
+                    <span className="tech-tag">GPT-4 & GPT-3.5</span>
+                    <span className="tech-tag">Claude</span>
+                    <span className="tech-tag">LLaMA</span>
+                    <span className="tech-tag">PaLM</span>
+                  </div>
+                </div>
+                
+                <div className="tech-category">
+                  <h4>Specialized Models</h4>
+                  <div className="tech-tags">
+                    <span className="tech-tag">BERT</span>
+                    <span className="tech-tag">RoBERTa</span>
+                    <span className="tech-tag">T5</span>
+                    <span className="tech-tag">Codex</span>
+                  </div>
+                </div>
+                
+                <div className="tech-category">
+                  <h4>Integration & Deployment</h4>
+                  <div className="tech-tags">
+                    <span className="tech-tag">LangChain</span>
+                    <span className="tech-tag">Hugging Face</span>
+                    <span className="tech-tag">OpenAI API</span>
+                    <span className="tech-tag">Vector Databases</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="llm-benefits">
+              <h3>Business Impact & ROI</h3>
+              <div className="benefits-grid">
+                <div className="benefit-item">
+                  <div className="benefit-number">40-60%</div>
+                  <div className="benefit-text">Reduction in operational costs through intelligent automation</div>
+                </div>
+                <div className="benefit-item">
+                  <div className="benefit-number">3x</div>
+                  <div className="benefit-text">Faster customer response times with AI-powered support</div>
+                </div>
+                <div className="benefit-item">
+                  <div className="benefit-number">85%</div>
+                  <div className="benefit-text">Improvement in content generation efficiency</div>
+                </div>
+                <div className="benefit-item">
+                  <div className="benefit-number">24/7</div>
+                  <div className="benefit-text">Continuous business operations with AI assistants</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* About Section */}
         <section id="about" className="section about">
           <div className="about-content">
@@ -67,7 +190,7 @@ export default function Home() {
                 We are a team of passionate AI experts, data scientists, and software engineers dedicated to helping businesses harness the power of artificial intelligence. Our mission is to make AI accessible, practical, and transformative for organizations of all sizes.
               </p>
               <p>
-                With years of experience in cutting-edge AI technologies, we've helped hundreds of companies implement intelligent solutions that drive real business value. From startups to Fortune 500 companies, we deliver results that matter.
+                With years of experience in cutting-edge AI technologies, we've helped many companies implement intelligent solutions that drive real business value. From startups to Fortune 500 companies, we deliver results that matter.
               </p>
               <p>
                 Our approach combines deep technical expertise with business acumen, ensuring that every AI solution we develop aligns with your strategic goals and delivers measurable ROI.
@@ -78,7 +201,7 @@ export default function Home() {
               <ul style={{ listStyle: 'none', padding: 0 }}>
                 <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
                   <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
-                  Proven track record with 200+ successful AI implementations
+                  Proven track record with many successful AI implementations
                 </li>
                 <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
                   <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
@@ -111,7 +234,7 @@ export default function Home() {
             <a href="mailto:info@brightmindvision.com" className="cta-button">
               Contact Us
             </a>
-            <a href="tel:+1234567890" className="cta-button" style={{ background: '#667eea', color: 'white' }}>
+            <a href="tel:+919554024428" className="cta-button" style={{ background: '#667eea', color: 'white' }}>
               Call Now
             </a>
           </div>
