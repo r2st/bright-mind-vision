@@ -20,7 +20,7 @@ Your email credentials are protected using industry-standard security practices:
 SMTP_HOST=smtp.zoho.com
 SMTP_PORT=587
 SMTP_USER=contact@brightmindvision.com
-SMTP_PASS=amzy1@BMV
+SMTP_PASS=1234
 ```
 
 **Step 2: Verify it's protected (already done):**
@@ -33,7 +33,7 @@ SMTP_PASS=amzy1@BMV
 #### **Layer 1: Environment Variables**
 ```javascript
 // ❌ NEVER DO THIS (password in code):
-const password = "amzy1@BMV";
+const password = "1234";
 
 // ✅ SECURE (password in environment):
 const password = process.env.SMTP_PASS;
@@ -62,7 +62,7 @@ const password = process.env.SMTP_PASS;
    - `SMTP_HOST` = `smtp.zoho.com`
    - `SMTP_PORT` = `587`
    - `SMTP_USER` = `contact@brightmindvision.com`
-   - `SMTP_PASS` = `amzy1@BMV`
+   - `SMTP_PASS` = `1234`
 
 #### **For Vercel:**
 1. Go to Project Settings → Environment Variables
@@ -102,4 +102,4 @@ const password = process.env.SMTP_PASS;
 - ✅ Server-side only access
 - ✅ No client-side exposure
 
-**Your password `amzy1@BMV` is completely secure!** 🔒
+**Your password `1234` is completely secure!** 🔒
