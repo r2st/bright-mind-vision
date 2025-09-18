@@ -17,9 +17,6 @@ export default function CustomCalendar() {
     const dates = [];
     const today = new Date();
     
-    // Get timezone offset to ensure we're working with local time
-    const timezoneOffset = today.getTimezoneOffset();
-    
     for (let i = 1; i <= 30; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
@@ -37,7 +34,8 @@ export default function CustomCalendar() {
           label: date.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric' 
+            day: 'numeric'
+            // Removed hardcoded timezone - now uses browser's timezone
           })
         });
       }
@@ -45,12 +43,44 @@ export default function CustomCalendar() {
     return dates;
   };
 
-  // Available time slots
-  const timeSlots = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '14:00', '14:30', '15:00', '15:30',
-    '16:00', '16:30', '17:00', '17:30'
-  ];
+  // Generate time slots based on browser timezone
+  const generateTimeSlots = () => {
+    const slots = [];
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezoneAbbr = new Date().toLocaleTimeString('en-US', { 
+      timeZoneName: 'short' 
+    }).split(' ')[2] || 'Local';
+    
+    // Business hours: 9 AM to 5:30 PM (in 30-minute intervals)
+    const startHour = 9;
+    const endHour = 17;
+    const endMinute = 30;
+    
+    for (let hour = startHour; hour <= endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        if (hour === endHour && minute > endMinute) break;
+        
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const date = new Date();
+        date.setHours(hour, minute, 0, 0);
+        
+        const displayTime = date.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+        
+        slots.push({
+          value: timeString,
+          label: `${displayTime} ${timezoneAbbr}`
+        });
+      }
+    }
+    
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
 
   const handleInputChange = (e) => {
     setFormData({
@@ -137,11 +167,20 @@ Please confirm this booking.
     );
   }
 
+  // Get user's timezone information
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezoneAbbr = new Date().toLocaleTimeString('en-US', { 
+    timeZoneName: 'short' 
+  }).split(' ')[2] || 'Local';
+
   return (
     <div className="custom-calendar">
       <div className="calendar-header">
         <h3>Book Your Free Consultation</h3>
         <p>Select your preferred date and time. We'll confirm the meeting via email.</p>
+        <div className="timezone-info">
+          <small>📍 All times shown in your local timezone: <strong>{userTimezone} ({timezoneAbbr})</strong></small>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="booking-form">
@@ -173,8 +212,8 @@ Please confirm this booking.
             >
               <option value="">Choose a time</option>
               {timeSlots.map(time => (
-                <option key={time} value={time}>
-                  {time}
+                <option key={time.value} value={time.value}>
+                  {time.label}
                 </option>
               ))}
             </select>
