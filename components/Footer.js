@@ -30,7 +30,7 @@ export default function Footer() {
             <div className={styles.linkGroup}>
               <h4>Connect</h4>
               <a href="mailto:contact@brightmindvision.com">contact@brightmindvision.com</a>
-              <a href="tel:+919554024428">+91 (955) 402-4428</a>
+              <a href="tel:+919554024428">+91 95540 24428</a>
               <div className={styles.social}>
                 <a href="#" aria-label="LinkedIn">LinkedIn</a>
                 <a href="#" aria-label="Twitter">Twitter</a>
@@ -41,7 +41,7 @@ export default function Footer() {
         </div>
         
         <div className={styles.bottom}>
-          <p>&copy; 2024 Bright Mind Vision. All rights reserved.</p>
+          <p>&copy; 2025 Bright Mind Vision. All rights reserved.</p>
         </div>
       </div>
     </footer>

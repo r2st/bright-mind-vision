@@ -1,6 +1,9 @@
 import Head from 'next/head'
+import Script from 'next/script'
 import Header from '@components/Header'
 import Footer from '@components/Footer'
+import Contact from '@components/Contact'
+import Calendar from '@components/Calendar'
 
 export default function Projects() {
   const projects = [
@@ -123,6 +126,12 @@ export default function Projects() {
       </Head>
 
       <Header />
+
+      {/* Calendly Script */}
+      <Script
+        src="https://assets.calendly.com/assets/external/widget.js"
+        strategy="lazyOnload"
+      />
       
       <main>
         {/* Hero Section */}
@@ -198,52 +207,8 @@ export default function Projects() {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="contact-section">
-          <div className="contact-content">
-            <div className="contact-header">
-              <h2>Ready to Start Your AI Project?</h2>
-              <p className="contact-subtitle">
-                Let's discuss how we can help transform your business with cutting-edge AI solutions.
-              </p>
-            </div>
-            
-            <div className="contact-methods">
-              <div className="contact-card">
-                <div className="contact-icon">📧</div>
-                <h3>Email Us</h3>
-                <p>Get in touch for project inquiries and consultations</p>
-                <a href="mailto:contact@brightmindvision.com" className="contact-link">
-                  contact@brightmindvision.com
-                </a>
-              </div>
-              
-              <div className="contact-card">
-                <div className="contact-icon">📞</div>
-                <h3>Call Us</h3>
-                <p>Speak directly with our AI experts</p>
-                <a href="tel:+919554024428" className="contact-link">
-                  +91 95540 24428
-                </a>
-              </div>
-              
-              <div className="contact-card">
-                <div className="contact-icon">💬</div>
-                <h3>WhatsApp Chat</h3>
-                <p>Start a conversation about your AI needs</p>
-                <a href="https://wa.me/919554024428?text=Hi%20Bright%20Mind%20Vision,%20I%27m%20interested%20in%20your%20AI%20services" target="_blank" rel="noopener noreferrer" className="contact-link whatsapp-link">
-                  Chat on WhatsApp
-                </a>
-              </div>
-            </div>
-            
-            <div className="contact-cta">
-              <a href="mailto:contact@brightmindvision.com" className="cta-button primary">
-                Get Started Today
-              </a>
-            </div>
-          </div>
-        </section>
+        <Contact />
+        <Calendar />
       </main>
 
       <Footer />

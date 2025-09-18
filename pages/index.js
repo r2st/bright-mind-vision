@@ -1,8 +1,15 @@
 import Head from 'next/head'
+import Script from 'next/script'
 import Header from '@components/Header'
 import Footer from '@components/Footer'
+import Contact from '@components/Contact'
+import Calendar from '@components/Calendar'
 
 export default function Home() {
+  const benefitsListStyle = { listStyle: 'none', padding: 0 };
+  const benefitItemStyle = { marginBottom: '1rem', display: 'flex', alignItems: 'center' };
+  const checkmarkStyle = { color: '#667eea', marginRight: '0.5rem' };
+
   return (
     <div className="container">
       <Head>
@@ -36,6 +43,12 @@ export default function Home() {
       </Head>
 
       <Header />
+
+      {/* Calendly Script */}
+      <Script
+        src="https://assets.calendly.com/assets/external/widget.js"
+        strategy="lazyOnload"
+      />
 
       <main>
         {/* Hero Section */}
@@ -231,25 +244,25 @@ export default function Home() {
             </div>
             <div className="about-text">
               <h3>Why Choose Us?</h3>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
-                <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
+              <ul style={benefitsListStyle}>
+                <li style={benefitItemStyle}>
+                  <span style={checkmarkStyle}>✓</span>
                   Proven track record with many successful AI implementations
                 </li>
-                <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
+                <li style={benefitItemStyle}>
+                  <span style={checkmarkStyle}>✓</span>
                   End-to-end support from strategy to deployment
                 </li>
-                <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
+                <li style={benefitItemStyle}>
+                  <span style={checkmarkStyle}>✓</span>
                   Custom solutions tailored to your specific needs
                 </li>
-                <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
+                <li style={benefitItemStyle}>
+                  <span style={checkmarkStyle}>✓</span>
                   Ongoing support and optimization services
                 </li>
-                <li style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#667eea', marginRight: '0.5rem' }}>✓</span>
+                <li style={benefitItemStyle}>
+                  <span style={checkmarkStyle}>✓</span>
                   Transparent pricing with no hidden costs
                 </li>
               </ul>
@@ -257,52 +270,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Contact Section */}
-        <section id="contact" className="contact-section">
-          <div className="contact-content">
-            <div className="contact-header">
-              <h2>Ready to Transform Your Business?</h2>
-              <p className="contact-subtitle">
-                Let's discuss how AI can drive innovation and growth for your organization.
-              </p>
-            </div>
-            
-            <div className="contact-methods">
-              <div className="contact-card">
-                <div className="contact-icon">📧</div>
-                <h3>Email Us</h3>
-                <p>Get in touch for project inquiries and consultations</p>
-                <a href="mailto:contact@brightmindvision.com" className="contact-link">
-                  contact@brightmindvision.com
-                </a>
-              </div>
-              
-              <div className="contact-card">
-                <div className="contact-icon">📞</div>
-                <h3>Call Us</h3>
-                <p>Speak directly with our AI experts</p>
-                <a href="tel:+919554024428" className="contact-link">
-                  +91 95540 24428
-                </a>
-              </div>
-              
-              <div className="contact-card">
-                <div className="contact-icon">💬</div>
-                <h3>WhatsApp Chat</h3>
-                <p>Start a conversation about your AI needs</p>
-                <a href="https://wa.me/919554024428?text=Hi%20Bright%20Mind%20Vision,%20I%27m%20interested%20in%20your%20AI%20services" target="_blank" rel="noopener noreferrer" className="contact-link whatsapp-link">
-                  Chat on WhatsApp
-                </a>
-              </div>
-            </div>
-            
-            <div className="contact-cta">
-              <a href="mailto:contact@brightmindvision.com" className="cta-button primary">
-                Get Started Today
-              </a>
-            </div>
-          </div>
-        </section>
+        <Contact />
+        <Calendar />
       </main>
 
       <Footer />
