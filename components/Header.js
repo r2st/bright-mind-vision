@@ -3,6 +3,7 @@ import styles from './Header.module.css'
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -10,6 +11,14 @@ export default function Header() {
 
   const closeMenu = () => {
     setIsMenuOpen(false)
+  }
+
+  const toggleDemo = () => {
+    setIsDemoOpen(!isDemoOpen)
+  }
+
+  const closeDemo = () => {
+    setIsDemoOpen(false)
   }
 
   return (
@@ -25,6 +34,27 @@ export default function Header() {
           <a href="/projects" className={styles.navLink}>Projects</a>
           <a href="/#services" className={styles.navLink}>Services</a>
           <a href="/#about" className={styles.navLink}>About</a>
+          <div className={styles.dropdown}>
+            <button 
+              className={`${styles.navLink} ${styles.dropdownToggle}`}
+              onClick={toggleDemo}
+              onMouseEnter={() => setIsDemoOpen(true)}
+              onMouseLeave={() => setIsDemoOpen(false)}
+            >
+              Demo
+              <span className={styles.dropdownArrow}>▼</span>
+            </button>
+            <div className={`${styles.dropdownMenu} ${isDemoOpen ? styles.dropdownOpen : ''}`}
+                 onMouseEnter={() => setIsDemoOpen(true)}
+                 onMouseLeave={() => setIsDemoOpen(false)}>
+              {/* <a href="/demo/voice-hotel-booking" className={styles.dropdownLink} onClick={closeDemo}>
+                Voice Hotel Booking
+              </a> */}
+              <a href="/demo/voice-wellness-partners" className={styles.dropdownLink} onClick={closeDemo}>
+                Wellness Partners
+              </a>
+            </div>
+          </div>
           <a href="/#contact" className={styles.navLink}>Contact</a>
         </nav>
 
@@ -48,6 +78,19 @@ export default function Header() {
         <a href="/projects" className={styles.mobileNavLink} onClick={closeMenu}>Projects</a>
         <a href="/#services" className={styles.mobileNavLink} onClick={closeMenu}>Services</a>
         <a href="/#about" className={styles.mobileNavLink} onClick={closeMenu}>About</a>
+        <div className={styles.mobileDropdown}>
+          <button className={styles.mobileDropdownToggle} onClick={toggleDemo}>
+            Demo <span className={styles.dropdownArrow}>▼</span>
+          </button>
+          <div className={`${styles.mobileDropdownMenu} ${isDemoOpen ? styles.mobileDropdownOpen : ''}`}>
+            {/* <a href="/demo/voice-hotel-booking" className={styles.mobileNavLink} onClick={closeMenu}>
+              Voice Hotel Booking
+            </a> */}
+            <a href="/demo/voice-wellness-partners" className={styles.mobileNavLink} onClick={closeMenu}>
+              Voice Wellness Partners
+            </a>
+          </div>
+        </div>
         <a href="/#contact" className={styles.mobileNavLink} onClick={closeMenu}>Contact</a>
       </nav>
     </header>
