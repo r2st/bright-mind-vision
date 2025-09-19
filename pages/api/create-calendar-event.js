@@ -1,5 +1,6 @@
 import ical from 'ical-generator';
 import axios from 'axios';
+import { google } from 'googleapis';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,9 +14,80 @@ export default async function handler(req, res) {
     const eventDate = new Date(`${date}T${time}:00`);
     const endDate = new Date(eventDate.getTime() + 30 * 60 * 1000); // 30 minutes duration
 
-    // Generate Zoho Meeting link (this would be replaced with actual Zoho Meeting API)
-    const meetingId = generateMeetingId();
-    const zohoMeetingLink = `https://meetings.zoho.com/meeting/${meetingId}`;
+    // Try to create real Google Meet event first
+    let googleMeetLink;
+    let isRealMeetLink = false;
+
+    if (process.env.GOOGLE_MEET_API_ENABLED === 'true' && 
+        process.env.GOOGLE_CLIENT_ID && 
+        process.env.GOOGLE_REFRESH_TOKEN) {
+      try {
+        // Set up OAuth client
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        );
+
+        oauth2Client.setCredentials({
+          refresh_token: process.env.GOOGLE_REFRESH_TOKEN
+        });
+
+        // Create calendar event with Google Meet
+        const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+        
+        const event = {
+          summary: `AI Consultation with ${name}`,
+          description: `
+Client: ${name}
+Email: ${email}
+Phone: ${phone || 'Not provided'}
+Message: ${message || 'No additional message'}
+          `,
+          start: {
+            dateTime: eventDate.toISOString(),
+            timeZone: 'UTC',
+          },
+          end: {
+            dateTime: endDate.toISOString(),
+            timeZone: 'UTC',
+          },
+          attendees: [
+            { email: email },
+            { email: 'brightmindvision1@gmail.com' },
+            { email: 'contact@brightmindvision.com' }
+          ],
+          conferenceData: {
+            createRequest: {
+              requestId: Math.random().toString(36).substring(2, 15),
+              conferenceSolutionKey: {
+                type: 'hangoutsMeet'
+              }
+            }
+          }
+        };
+
+        const response = await calendar.events.insert({
+          calendarId: 'primary',
+          resource: event,
+          conferenceDataVersion: 1,
+        });
+
+        googleMeetLink = response.data.conferenceData?.entryPoints?.[0]?.uri;
+        isRealMeetLink = true;
+        
+        console.log('✅ Real Google Meet event created:', googleMeetLink);
+      } catch (apiError) {
+        console.log('⚠️ Google Meet API failed, using fallback:', apiError.message);
+        googleMeetLink = generateGoogleMeetLink();
+        isRealMeetLink = false;
+      }
+    } else {
+      // Use mock Google Meet link
+      googleMeetLink = generateGoogleMeetLink();
+      isRealMeetLink = false;
+      console.log('📝 Using mock Google Meet link (API not configured)');
+    }
 
     // Create iCal event
     const calendar = ical({ name: 'Bright Mind Vision - AI Consultation' });
@@ -32,12 +104,12 @@ Email: ${email}
 Phone: ${phone || 'Not provided'}
 Message: ${message || 'No additional message'}
 
-Meeting Link: ${zohoMeetingLink}
+Meeting Link: ${googleMeetLink}
 
-Please join the meeting using the link above.
+Please join the meeting using the Google Meet link above.
       `,
-      location: zohoMeetingLink,
-      url: zohoMeetingLink,
+      location: googleMeetLink,
+      url: googleMeetLink,
       organizer: {
         name: 'Bright Mind Vision',
         email: 'contact@brightmindvision.com'
@@ -50,6 +122,10 @@ Please join the meeting using the link above.
         {
           name: 'Bright Mind Vision',
           email: 'contact@brightmindvision.com'
+        },
+        {
+          name: 'Bright Mind Vision (Gmail)',
+          email: 'brightmindvision1@gmail.com'
         }
       ],
       status: 'CONFIRMED',
@@ -72,10 +148,11 @@ Please join the meeting using the link above.
         title: `AI Consultation with ${name}`,
         start: eventDate.toISOString(),
         end: endDate.toISOString(),
-        meetingLink: zohoMeetingLink,
-        icalContent: icalContent
+        meetingLink: googleMeetLink,
+        icalContent: icalContent,
+        isRealMeetLink: isRealMeetLink
       },
-      message: 'Calendar event created successfully'
+      message: isRealMeetLink ? 'Google Meet event created successfully' : 'Calendar event created with mock Google Meet link'
     });
 
   } catch (error) {
@@ -87,7 +164,32 @@ Please join the meeting using the link above.
   }
 }
 
-// Generate a mock meeting ID (replace with actual Zoho Meeting API)
+// Generate Google Meet link
+function generateGoogleMeetLink() {
+  // Google Meet links use a specific format with 3 groups of 3-4 characters
+  // Format: https://meet.google.com/xxx-xxxx-xxx
+  const meetingId = generateMeetingId();
+  return `https://meet.google.com/${meetingId}`;
+}
+
+// Generate a unique meeting ID for Google Meet
 function generateMeetingId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  // Google Meet uses format: xxx-xxxx-xxx (3-4-3 characters)
+  // Using lowercase letters and numbers
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  
+  const part1 = generateRandomString(chars, 3);
+  const part2 = generateRandomString(chars, 4);
+  const part3 = generateRandomString(chars, 3);
+  
+  return `${part1}-${part2}-${part3}`;
+}
+
+// Helper function to generate random string
+function generateRandomString(chars, length) {
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

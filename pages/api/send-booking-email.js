@@ -94,10 +94,13 @@ export default async function handler(req, res) {
     
     const formattedTime = formatTime(time);
 
-    // Email to business (you)
+    // Email to business (both email addresses)
     const businessEmailContent = {
       from: process.env.SMTP_USER || 'contact@brightmindvision.com',
-      to: process.env.SMTP_USER || 'contact@brightmindvision.com',
+      to: [
+        process.env.SMTP_USER || 'contact@brightmindvision.com',
+        'brightmindvision1@gmail.com'
+      ],
       subject: `📅 New Meeting Booking Request - ${name}`,
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
@@ -151,8 +154,11 @@ export default async function handler(req, res) {
             ${calendarEvent && calendarEvent.calendarEvent ? `
             <div style="background: #f0fff4; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #38a169;">
               <h3 style="color: #1a202c; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">📅 Calendar Event Created</h3>
-              <p style="color: #4a5568; margin: 0 0 10px 0; line-height: 1.6;">A calendar event has been automatically created for this meeting.</p>
-              <p style="color: #4a5568; margin: 0; line-height: 1.6;"><strong>Meeting Link:</strong> <a href="${calendarEvent.calendarEvent.meetingLink}" style="color: #667eea; text-decoration: none;">${calendarEvent.calendarEvent.meetingLink}</a></p>
+              <p style="color: #4a5568; margin: 0 0 10px 0; line-height: 1.6;">A calendar event has been automatically created for this meeting with a Google Meet link.</p>
+              <p style="color: #4a5568; margin: 0 0 10px 0; line-height: 1.6;"><strong>Google Meet Link:</strong> <a href="${calendarEvent.calendarEvent.meetingLink}" style="color: #667eea; text-decoration: none;">${calendarEvent.calendarEvent.meetingLink}</a></p>
+              ${calendarEvent.calendarEvent.isRealMeetLink === false ? `
+              <p style="color: #d69e2e; margin: 0; font-size: 12px; font-style: italic;">⚠️ Note: This is a mock Google Meet link. To get real Google Meet rooms, please configure the Google Meet API.</p>
+              ` : ''}
             </div>
             ` : ''}
             
@@ -220,8 +226,8 @@ export default async function handler(req, res) {
               <h3 style="color: #1a202c; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">📋 What Happens Next?</h3>
               <ul style="color: #4a5568; margin: 0; padding-left: 20px; line-height: 1.6;">
                 <li>We will review your request and confirm the meeting time</li>
-                <li>You'll receive a confirmation email with meeting details</li>
-                <li>We'll send you a calendar invitation if needed</li>
+                <li>You'll receive a confirmation email with Google Meet details</li>
+                <li>We'll send you a calendar invitation with the meeting link</li>
                 <li>Our team will prepare for your consultation</li>
               </ul>
             </div>
@@ -263,22 +269,34 @@ export default async function handler(req, res) {
     };
 
 
-    // Update client email with calendar invite
+    // Update client email with calendar invite and ICS attachment
     if (calendarEvent && calendarEvent.calendarEvent) {
       const calendarInviteSection = `
         <!-- Calendar Invite Section -->
         <div style="background: #f0fff4; padding: 25px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #38a169;">
           <h3 style="color: #1a202c; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">📅 Calendar Invite</h3>
-          <p style="color: #4a5568; margin: 0 0 15px 0; line-height: 1.6;">We've created a calendar event for your consultation. You can add it to your calendar using the link below:</p>
+          <p style="color: #4a5568; margin: 0 0 15px 0; line-height: 1.6;">We've created a calendar event for your consultation with a Google Meet link. You can add it to your calendar using the methods below:</p>
+          
           <div style="text-align: center; margin: 20px 0;">
             <a href="data:text/calendar;charset=utf8,${encodeURIComponent(calendarEvent.calendarEvent.icalContent)}" 
-               style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
+               style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; margin: 5px;">
               📅 Add to Calendar
             </a>
           </div>
+          
+          <div style="background: #e6f3ff; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <p style="color: #2d3748; margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">📎 Calendar File Attached</p>
+            <p style="color: #4a5568; margin: 0; font-size: 13px; line-height: 1.5;">This email includes a calendar file attachment (meeting-invite.ics). Many email clients will automatically prompt you to add this event to your calendar when you open the email.</p>
+          </div>
+          
           <p style="color: #4a5568; margin: 15px 0 0 0; font-size: 14px; text-align: center;">
-            Meeting Link: <a href="${calendarEvent.calendarEvent.meetingLink}" style="color: #667eea; text-decoration: none;">${calendarEvent.calendarEvent.meetingLink}</a>
+            Google Meet Link: <a href="${calendarEvent.calendarEvent.meetingLink}" style="color: #667eea; text-decoration: none;">${calendarEvent.calendarEvent.meetingLink}</a>
           </p>
+          ${calendarEvent.calendarEvent.isRealMeetLink === false ? `
+          <p style="color: #d69e2e; margin: 10px 0 0 0; font-size: 12px; text-align: center; font-style: italic;">
+            ⚠️ Note: This is a mock Google Meet link. To get real Google Meet rooms, please configure the Google Meet API.
+          </p>
+          ` : ''}
         </div>
       `;
       
@@ -286,6 +304,24 @@ export default async function handler(req, res) {
         '<!-- Calendar Invite Placeholder -->',
         calendarInviteSection
       );
+
+      // Add ICS file attachment to client email
+      clientEmailContent.attachments = [
+        {
+          filename: 'meeting-invite.ics',
+          content: calendarEvent.calendarEvent.icalContent,
+          contentType: 'text/calendar; charset=utf-8'
+        }
+      ];
+
+      // Add ICS file attachment to business email as well
+      businessEmailContent.attachments = [
+        {
+          filename: 'meeting-invite.ics',
+          content: calendarEvent.calendarEvent.icalContent,
+          contentType: 'text/calendar; charset=utf-8'
+        }
+      ];
     }
 
     // Send both emails
