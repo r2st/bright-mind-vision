@@ -19,8 +19,8 @@ export default function Contact() {
             <div className="contact-icon">📧</div>
             <h3>Email Us</h3>
             <p>Send us a detailed message about your project</p>
-            <a href="mailto:contact@brightmindvision.com" className="contact-link email-link">
-              <span className="link-text">contact@brightmindvision.com</span>
+            <a href={`mailto:${process.env.NEXT_PUBLIC_BUSINESS_EMAIL || 'contact@brightmindvision.com'}`} className="contact-link email-link">
+              <span className="link-text">{process.env.NEXT_PUBLIC_BUSINESS_EMAIL || 'contact@brightmindvision.com'}</span>
             </a>
           </div>
           

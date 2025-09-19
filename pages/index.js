@@ -9,6 +9,7 @@ export default function Home() {
   const benefitsListStyle = { listStyle: 'none', padding: 0 };
   const benefitItemStyle = { marginBottom: '1rem', display: 'flex', alignItems: 'center' };
   const checkmarkStyle = { color: '#667eea', marginRight: '0.5rem' };
+  const llmSectionStyle = { background: '#f8fafc' };
 
   return (
     <div className="container">
@@ -105,7 +106,7 @@ export default function Home() {
         </section>
 
         {/* LLM Technologies Section */}
-        <section className="section" style={{ background: '#f8fafc' }}>
+        <section className="section" style={llmSectionStyle}>
           <h2>LLM Technologies & Business Solutions</h2>
           <div className="llm-content">
             <div className="llm-intro">

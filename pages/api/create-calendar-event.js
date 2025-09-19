@@ -55,7 +55,7 @@ Message: ${message || 'No additional message'}
           attendees: [
             { email: email },
             { email: 'brightmindvision1@gmail.com' },
-            { email: 'contact@brightmindvision.com' }
+            { email: process.env.SMTP_USER || 'your-email@example.com' }
           ],
           conferenceData: {
             createRequest: {
@@ -112,7 +112,7 @@ Please join the meeting using the Google Meet link above.
       url: googleMeetLink,
       organizer: {
         name: 'Bright Mind Vision',
-        email: 'contact@brightmindvision.com'
+        email: process.env.SMTP_USER || 'your-email@example.com'
       },
       attendees: [
         {
@@ -121,7 +121,7 @@ Please join the meeting using the Google Meet link above.
         },
         {
           name: 'Bright Mind Vision',
-          email: 'contact@brightmindvision.com'
+          email: process.env.SMTP_USER || 'your-email@example.com'
         },
         {
           name: 'Bright Mind Vision (Gmail)',

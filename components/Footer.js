@@ -29,7 +29,7 @@ export default function Footer() {
             
             <div className={styles.linkGroup}>
               <h4>Connect</h4>
-              <a href="mailto:contact@brightmindvision.com">contact@brightmindvision.com</a>
+              <a href={`mailto:${process.env.NEXT_PUBLIC_BUSINESS_EMAIL || 'contact@brightmindvision.com'}`}>{process.env.NEXT_PUBLIC_BUSINESS_EMAIL || 'contact@brightmindvision.com'}</a>
               <a href="tel:+919554024428">+91 95540 24428</a>
               <div className={styles.social}>
                 <a href="#" aria-label="LinkedIn">LinkedIn</a>

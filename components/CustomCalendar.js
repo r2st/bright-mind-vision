@@ -89,6 +89,16 @@ export default function CustomCalendar() {
     });
   };
 
+  const handleBookAnother = () => {
+    setIsSubmitted(false);
+  };
+
+  const devModeStyle = {
+    fontSize: '12px',
+    color: '#666',
+    fontStyle: 'italic'
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -99,7 +109,7 @@ export default function CustomCalendar() {
         date: selectedDate,
         time: selectedTime,
         ...formData,
-        to: 'contact@brightmindvision.com',
+        to: process.env.NEXT_PUBLIC_BUSINESS_EMAIL || 'your-email@example.com',
         subject: `New Meeting Booking Request - ${formData.name}`,
         message: `
 New meeting booking request:
@@ -153,12 +163,12 @@ Please confirm this booking.
         <h3>Booking Request Sent!</h3>
         <p>Thank you for your interest. We'll contact you shortly to confirm your meeting time.</p>
         {process.env.NODE_ENV === 'development' && (
-          <p style={{fontSize: '12px', color: '#666', fontStyle: 'italic'}}>
+          <p style={devModeStyle}>
             🔧 Development mode: Email was simulated, not actually sent.
           </p>
         )}
         <button 
-          onClick={() => setIsSubmitted(false)}
+          onClick={handleBookAnother}
           className="book-another-btn"
         >
           Book Another Meeting

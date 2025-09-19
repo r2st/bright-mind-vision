@@ -17,9 +17,9 @@ export default async function handler(req, res) {
     if (isDevelopment && simulateEmails) {
       // For development with simulation enabled, create a test transporter that doesn't actually send emails
       console.log('🔧 Development mode: Simulating email sending...');
-      console.log('📧 Would send email to business:', process.env.SMTP_USER || 'contact@brightmindvision.com');
+      console.log('📧 Would send email to business:', process.env.SMTP_USER || '[business-email]');
       console.log('📧 Would send email to client:', email);
-      console.log('📧 Would send email from:', process.env.SMTP_USER || 'contact@brightmindvision.com');
+      console.log('📧 Would send email from:', process.env.SMTP_USER || '[business-email]');
       
       // Simulate email sending
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -34,11 +34,11 @@ export default async function handler(req, res) {
     
     // Create transporter for production (Zoho Mail Pro or any SMTP provider)
     const smtpConfig = {
-      host: process.env.SMTP_HOST || 'smtppro.zoho.in',
+      host: process.env.SMTP_HOST || 'smtp.example.com',
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false, // true for 465, false for other ports (587 uses TLS)
       auth: {
-        user: process.env.SMTP_USER || 'contact@brightmindvision.com',
+        user: process.env.SMTP_USER || 'your-email@example.com',
         pass: process.env.SMTP_PASS || 'your-app-password'
       }
     };
@@ -96,9 +96,9 @@ export default async function handler(req, res) {
 
     // Email to business (both email addresses)
     const businessEmailContent = {
-      from: process.env.SMTP_USER || 'contact@brightmindvision.com',
+      from: process.env.SMTP_USER || 'your-email@example.com',
       to: [
-        process.env.SMTP_USER || 'contact@brightmindvision.com',
+        process.env.SMTP_USER || 'your-email@example.com',
         'brightmindvision1@gmail.com'
       ],
       subject: `📅 New Meeting Booking Request - ${name}`,
@@ -180,7 +180,7 @@ export default async function handler(req, res) {
 
     // Email to client (confirmation)
     const clientEmailContent = {
-      from: process.env.SMTP_USER || 'contact@brightmindvision.com',
+      from: process.env.SMTP_USER || 'your-email@example.com',
       to: email,
       subject: `✅ Meeting Request Confirmed - Bright Mind Vision`,
       html: `
@@ -239,7 +239,7 @@ export default async function handler(req, res) {
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 5px 0; font-weight: 600; color: #4a5568; width: 80px;">Email:</td>
-                  <td style="padding: 5px 0;"><a href="mailto:contact@brightmindvision.com" style="color: #667eea; text-decoration: none;">contact@brightmindvision.com</a></td>
+                  <td style="padding: 5px 0;"><a href="mailto:${process.env.SMTP_USER || 'your-email@example.com'}" style="color: #667eea; text-decoration: none;">${process.env.SMTP_USER || 'your-email@example.com'}</a></td>
                 </tr>
                 <tr>
                   <td style="padding: 5px 0; font-weight: 600; color: #4a5568;">Phone:</td>
