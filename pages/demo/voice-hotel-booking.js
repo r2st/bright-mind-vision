@@ -1,7 +1,6 @@
 import Head from 'next/head'
 import { useState, useEffect } from 'react'
 import Script from 'next/script'
-import Header from '@components/Header'
 import Footer from '@components/Footer'
 import { default as Vapi } from '@vapi-ai/web'
 
@@ -908,7 +907,6 @@ export default function VoiceHotelBooking() {
         <meta name="keywords" content="voice booking, AI hotel booking, Vapi.ai, voice assistant, hotel demo" />
       </Head>
 
-      <Header />
 
       <main style={{ paddingTop: '120px', minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
         {/* Header */}

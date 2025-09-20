@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import styles from './Header.module.css'
+import styles from './MainHeader.module.css'
 
-export default function Header() {
+export default function MainHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDemoOpen, setIsDemoOpen] = useState(false)
 
@@ -53,6 +53,9 @@ export default function Header() {
               <a href="/demo/voice-wellness-partners" className={styles.dropdownLink} onClick={closeDemo}>
                 Wellness Partners
               </a>
+              <a href="/demo/voice-patient-onboarding" className={styles.dropdownLink} onClick={closeDemo}>
+                Patient Onboarding
+              </a>
             </div>
           </div>
           <a href="/#contact" className={styles.navLink}>Contact</a>
@@ -88,6 +91,9 @@ export default function Header() {
             </a> */}
             <a href="/demo/voice-wellness-partners" className={styles.mobileNavLink} onClick={closeMenu}>
               Voice Wellness Partners
+            </a>
+            <a href="/demo/voice-patient-onboarding" className={styles.mobileNavLink} onClick={closeMenu}>
+              Voice Patient Onboarding
             </a>
           </div>
         </div>

@@ -1,0 +1,17 @@
+.main {
+  flex: 1;
+  margin-top: 90px; /* Default desktop header height */
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .main {
+    margin-top: 70px; /* Mobile header height */
+  }
+}
+
+@media (max-width: 480px) {
+  .main {
+    margin-top: 60px; /* Small mobile header height */
+  }
+}

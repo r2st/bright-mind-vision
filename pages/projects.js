@@ -1,6 +1,5 @@
 import Head from 'next/head'
 import Script from 'next/script'
-import Header from '@components/Header'
 import Footer from '@components/Footer'
 import Contact from '@components/Contact'
 import Calendar from '@components/Calendar'
@@ -125,7 +124,6 @@ export default function Projects() {
         <link rel="canonical" href="https://brightmindvision.com/projects" />
       </Head>
 
-      <Header />
 
       {/* Calendly Script */}
       <Script
