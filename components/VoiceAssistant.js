@@ -18,11 +18,14 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   const initializationRef = useRef(false); // Prevent multiple initializations
 
   // Check browser compatibility for voice features
-  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
+  const [isVoiceSupported, setIsVoiceSupported] = useState(true);
   
   useEffect(() => {
     // Check browser compatibility only on client side
     const checkVoiceSupport = () => {
+      // Only run on client side
+      if (typeof window === 'undefined') return false;
+      
       // Check if getUserMedia is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.log('🔍 Voice not supported: getUserMedia not available');
@@ -33,6 +36,8 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
       const isHTTPS = location.protocol === 'https:';
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      console.log('🔍 Voice support check:', { isLocalhost, isHTTPS, isMobile });
       
       // Mobile devices require HTTPS even for localhost
       if (isMobile && !isHTTPS) {
@@ -52,6 +57,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
         // Still return true for mobile, but we'll handle errors gracefully
       }
       
+      console.log('🔍 Voice supported: HTTP localhost on desktop');
       return true;
     };
     

@@ -105,6 +105,9 @@ export default function VoiceHotelBooking() {
   // Initialize audio permissions and Vapi when component mounts
   useEffect(() => {
     const initializeAudioAndVapi = async () => {
+      // Only run on client side
+      if (typeof window === 'undefined') return;
+      
       console.log('🔍 Starting audio and Vapi initialization...')
       
       try {
@@ -415,6 +418,9 @@ export default function VoiceHotelBooking() {
 
   // Add user interaction handler to resume audio context
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
     const handleUserInteraction = async () => {
       try {
         if (typeof AudioContext !== 'undefined') {

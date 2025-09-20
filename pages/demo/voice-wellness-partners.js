@@ -9,12 +9,9 @@ const VoiceWellnessPartners = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
 
-  // Handle search results from VoiceAssistant component
-  const handleSearchResults = (results) => {
+  // Function to update search results, passed to VoiceAssistant
+  const updateSearchResults = (results, show) => {
     setSearchResults(results);
-  };
-
-  const handleShowResults = (show) => {
     setShowResults(show);
   };
 
@@ -52,10 +49,7 @@ const VoiceWellnessPartners = () => {
             </p>
             
             {/* Voice Assistant Component */}
-            <VoiceAssistant 
-              onSearchResults={handleSearchResults}
-              onShowResults={handleShowResults}
-            />
+            <VoiceAssistant updateSearchResults={updateSearchResults} />
           </div>
         </section>
 

@@ -15,19 +15,6 @@ const VoicePatientOnboarding = () => {
     setShowResults(show);
   };
 
-  // Show mobile notice if on mobile and HTTP
-  React.useEffect(() => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isHTTP = location.protocol === 'http:';
-    const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    
-    if (isMobile && isHTTP && isLocalhost) {
-      const mobileNotice = document.getElementById('mobile-notice');
-      if (mobileNotice) {
-        mobileNotice.style.display = 'block';
-      }
-    }
-  }, []);
 
   return (
     <>
@@ -62,27 +49,6 @@ const VoicePatientOnboarding = () => {
               Automated patient onboarding, appointment booking, and cloud-based data management for doctors and clinic staff.
             </p>
             
-            {/* Mobile HTTPS Notice */}
-            <div style={{
-              backgroundColor: '#fef3c7',
-              border: '1px solid #f59e0b',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '30px',
-              textAlign: 'left',
-              display: 'none' // Will be shown via JavaScript for mobile devices
-            }} id="mobile-notice">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '20px' }}>📱</span>
-                <strong style={{ color: '#92400e' }}>Mobile Device Detected</strong>
-              </div>
-              <p style={{ margin: '0 0 8px 0', color: '#92400e', fontSize: '14px' }}>
-                Voice features require HTTPS connection on mobile devices.
-              </p>
-              <p style={{ margin: '0', color: '#92400e', fontSize: '14px' }}>
-                <strong>Solutions:</strong> Use desktop browser, access via HTTPS, or deploy to production.
-              </p>
-            </div>
 
             {/* Voice Assistant Component */}
             <VoiceAssistant updateSearchResults={updateSearchResults} />

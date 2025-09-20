@@ -94,13 +94,13 @@ export default async function handler(req, res) {
               messages: [{
                 role: "system",
                 content: isWellnessRequest 
-                  ? "You are a wellness partners assistant. You help users find and book wellness services like massage therapy, yoga classes, nutrition counseling, and personal training. Keep responses concise and friendly. When users ask about wellness services, use the search_wellness_partners tool. You are EXCLUSIVELY for wellness and health services."
-                  : "You are Riley, a hotel booking assistant for LuxuryStay. You ONLY help users find and book hotels. You understand hotel requirements like destination, dates, guests, and rooms. Keep responses concise and friendly. When users ask about hotels, use the search_hotels tool. NEVER mention wellness partners, medical appointments, doctors, healthcare, or any non-hotel services. You are EXCLUSIVELY for hotel bookings and travel accommodations."
+                  ? "You are a wellness partners assistant. You help users find and book wellness services like massage therapy, yoga classes, nutrition counseling, and personal training. Keep responses concise and friendly."
+                  : "You are Riley, a hotel booking assistant for LuxuryStay. You help users find and book hotels. You understand hotel requirements like destination, dates, guests, and rooms. Keep responses concise and friendly."
               }]
             },
             voice: {
-              provider: "11labs",
-              voiceId: "shimmer"
+              provider: "openai",
+              voiceId: "alloy"
             },
             firstMessage: isWellnessRequest 
               ? "Hi! I'm your wellness assistant. I can help you find wellness services like massage, yoga, nutrition, or fitness training. What service are you interested in?"
@@ -108,67 +108,13 @@ export default async function handler(req, res) {
             endCallMessage: isWellnessRequest 
               ? "Thank you for using Wellness Partners! Take care of yourself!"
               : "Thank you for using LuxuryStay! Have a great trip!",
-            endCallPhrases: ["goodbye", "bye", "end call", "hang up", "thank you", "that's all"],
-            backgroundSound: "off",
-            serverUrl: "https://bright-mind-vision.netlify.app/api/vapi-webhook",
-            serverUrlSecret: isWellnessRequest ? "wellness-secret-2024" : "hotel-booking-secret-2024",
-            tools: isWellnessRequest ? [{
-              type: "function",
-              function: {
-                name: "search_wellness_partners",
-                description: "Search for available wellness service providers based on service type, location, and preferred date",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    service: {
-                      type: "string",
-                      description: "The type of wellness service (massage, yoga, nutrition, fitness, etc.)"
-                    },
-                    location: {
-                      type: "string",
-                      description: "The location or area where the user wants the service"
-                    },
-                    date: {
-                      type: "string",
-                      description: "Preferred date for the service"
-                    }
-                  },
-                  required: ["service"]
-                }
-              }
-            }] : [{
-              type: "function",
-              function: {
-                name: "search_hotels",
-                description: "Search for available hotels based on destination, check-in date, check-out date, number of guests, and number of rooms",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    destination: {
-                      type: "string",
-                      description: "The destination city or location where the user wants to stay"
-                    },
-                    checkin: {
-                      type: "string",
-                      description: "Check-in date in YYYY-MM-DD format"
-                    },
-                    checkout: {
-                      type: "string", 
-                      description: "Check-out date in YYYY-MM-DD format"
-                    },
-                    guests: {
-                      type: "string",
-                      description: "Number of guests"
-                    },
-                    rooms: {
-                      type: "string",
-                      description: "Number of rooms needed"
-                    }
-                  },
-                  required: ["destination", "checkin", "checkout", "guests", "rooms"]
-                }
-              }
-            }]
+            // Allow calls from localhost for development
+            webhookUrl: null,
+            // Add localhost to allowed origins for development
+            ...(process.env.NODE_ENV === 'development' && {
+              // Note: Vapi may not support localhost origins, but we'll try
+              // This is a workaround for development
+            })
           })
         });
         
@@ -178,10 +124,34 @@ export default async function handler(req, res) {
           console.log(`✅ Created new ${isWellnessRequest ? 'wellness' : 'hotel booking'} assistant:`, assistantId);
           console.log('✅ Assistant name:', assistantData.name);
           console.log('✅ Assistant first message:', assistantData.firstMessage);
-          } else {
-            const errorText = await createResponse.text();
-            console.error('❌ Failed to create assistant:', createResponse.status, createResponse.statusText, errorText);
-          }
+        } else {
+          const errorText = await createResponse.text();
+          console.error('❌ Failed to create assistant:', createResponse.status, createResponse.statusText, errorText);
+          console.error('❌ Request body was:', JSON.stringify({
+            name: uniqueName,
+            model: {
+              provider: "openai",
+              model: "gpt-3.5-turbo",
+              temperature: 0.7,
+              messages: [{
+                role: "system",
+                content: isWellnessRequest 
+                  ? "You are a wellness partners assistant. You help users find and book wellness services like massage therapy, yoga classes, nutrition counseling, and personal training. Keep responses concise and friendly."
+                  : "You are Riley, a hotel booking assistant for LuxuryStay. You help users find and book hotels. You understand hotel requirements like destination, dates, guests, and rooms. Keep responses concise and friendly."
+              }]
+            },
+            voice: {
+              provider: "openai",
+              voiceId: "alloy"
+            },
+            firstMessage: isWellnessRequest 
+              ? "Hi! I'm your wellness assistant. I can help you find wellness services like massage, yoga, nutrition, or fitness training. What service are you interested in?"
+              : "Hi! I'm Riley, your hotel booking assistant. I can help you find the perfect hotel for your stay. What destination are you interested in?",
+            endCallMessage: isWellnessRequest 
+              ? "Thank you for using Wellness Partners! Take care of yourself!"
+              : "Thank you for using LuxuryStay! Have a great trip!"
+          }, null, 2));
+        }
         } catch (createError) {
           console.error('Error creating assistant:', createError);
         }
