@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Vapi from '@vapi-ai/web';
+import { WELLNESS_CONFIG } from './VoiceAssistantConfigs';
 
-const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
+const VoiceAssistant = ({ 
+  config = WELLNESS_CONFIG,
+  onSearchResults, 
+  onShowResults,
+  className = '',
+  style = {}
+}) => {
   const [isListening, setIsListening] = useState(false);
-  const [voiceMessage, setVoiceMessage] = useState('Click to start voice assistant');
+  const [voiceMessage, setVoiceMessage] = useState(config.ui.initialMessage);
   const [voiceStatus, setVoiceStatus] = useState('ready'); // 'ready', 'loading', 'listening', 'speaking', 'error'
   const [vapi, setVapi] = useState(null);
   const [vapiReady, setVapiReady] = useState(false);
@@ -16,6 +23,10 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   const assistantIdRef = useRef(null);
   const lastAssistantIdRef = useRef(null);
   const initializationRef = useRef(false); // Prevent multiple initializations
+  const speechActiveRef = useRef(false); // Track if speech is currently active
+  const speechTimeoutRef = useRef(null); // Track speech timeout
+  const lastSpeechCommandRef = useRef(''); // Track last speech command to prevent duplicates
+  const speechQueueRef = useRef([]); // Track speech queue
 
   // Check browser compatibility for voice features
   const [isVoiceSupported, setIsVoiceSupported] = useState(true);
@@ -65,10 +76,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   }, []);
 
   // Local storage utilities - memoized for performance
-  const STORAGE_KEYS = useMemo(() => ({
-    ASSISTANT_ID: 'vapi_wellness_assistant_id',
-    ASSISTANT_TIMESTAMP: 'vapi_wellness_assistant_timestamp'
-  }), []);
+  const STORAGE_KEYS = useMemo(() => config.storageKeys, [config.storageKeys]);
 
   const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   const FAST_TIMEOUT = 2000; // 2 seconds for faster fallback
@@ -128,7 +136,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FAST_TIMEOUT); // 2 seconds for faster fallback
       
-      const response = await fetch('/api/vapi-init', { 
+      const response = await fetch(config.apiEndpoint, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -272,7 +280,9 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
             // Add very fast timeout to Vapi initialization
             const initPromise = new Promise((resolve, reject) => {
               try {
+                // Create VAPI instance with just the API key (as per documentation)
                 const vapiInstance = new Vapi(publicApiKey);
+                
                 setupVapiEventListeners(vapiInstance);
                 setVapi(vapiInstance);
                 resolve(vapiInstance);
@@ -325,6 +335,21 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       initializeVapi();
     }
   }, [initializeVapi, isVoiceSupported]);
+
+  // Cleanup speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        speechActiveRef.current = false;
+      }
+      if (speechTimeoutRef.current) {
+        clearTimeout(speechTimeoutRef.current);
+        speechTimeoutRef.current = null;
+      }
+      speechQueueRef.current = []; // Clear speech queue
+    };
+  }, []);
 
   // Resume AudioContext on user interaction
   useEffect(() => {
@@ -392,11 +417,28 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       } else if (message.type === 'assistant-message') {
         console.log('🔍 Assistant response:', message.message);
         setVoiceMessage(`Assistant: ${message.message}`);
+      } else if (message.type === 'speech-start') {
+        console.log('🔍 Assistant started speaking');
+        setVoiceStatus('speaking');
+      } else if (message.type === 'speech-end') {
+        console.log('🔍 Assistant finished speaking');
+        setVoiceStatus('listening');
       }
     });
     
     vapiInstance.on('error', (error) => {
       console.error('🔍 Vapi error:', error);
+      
+      // Handle specific validation errors
+      if (error.type === 'validation-error') {
+        console.log('🔍 VAPI validation error, falling back to demo mode');
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready (demo mode)');
+        setIsListening(false);
+        // Don't set error status for validation errors, just fall back to demo mode
+        return;
+      }
+      
       setVoiceStatus('error');
       setVoiceMessage('Voice assistant error');
       setIsListening(false);
@@ -428,36 +470,19 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       if (vapi) {
         console.log('🔍 Starting Vapi call...');
         
-        // Use pre-loaded assistant ID for faster startup
-        if (assistantIdRef.current) {
-          console.log('🔍 Using pre-loaded assistant ID:', assistantIdRef.current);
-          vapi.start(assistantIdRef.current);
+        // Start VAPI call with assistant ID (as per documentation)
+        const assistantId = '81f49cc7-c40a-433d-8606-63c84babe3a9';
+        console.log('🔍 Starting VAPI call with assistant ID:', assistantId);
+        try {
+          vapi.start(assistantId); // Pass assistant ID as per documentation
           setVoiceStatus('listening');
           setVoiceMessage('Listening...');
           setIsListening(true);
-        } else {
-          // Try using cached assistant ID first
-          const cachedId = getCachedAssistantId();
-          if (cachedId) {
-            console.log('🔍 Using cached assistant ID:', cachedId);
-            assistantIdRef.current = cachedId;
-            vapi.start(cachedId);
-            setVoiceStatus('listening');
-            setVoiceMessage('Listening...');
-            setIsListening(true);
-          } else {
-            // Try using the public key directly (no server call)
-            console.log('🔍 No assistant ID, trying public key directly...');
-            try {
-              vapi.start();
-              setVoiceStatus('listening');
-              setVoiceMessage('Listening...');
-              setIsListening(true);
-            } catch (directStartError) {
-              console.log('🔍 Direct start failed, using demo mode...');
-              startDemoMode();
-            }
-          }
+        } catch (startError) {
+          console.error('🔍 Failed to start VAPI call:', startError);
+          // Fall back to demo mode if VAPI start fails
+          console.log('🔍 VAPI start failed, using demo mode...');
+          startDemoMode();
         }
       } else {
         // Demo mode - simulate voice recognition
@@ -472,15 +497,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   };
 
   // Memoize demo commands for better performance
-  const demoCommands = useMemo(() => [
-    'I need a massage therapist',
-    'Find yoga classes near me',
-    'Book nutrition consultation',
-    'Schedule personal training session',
-    'I want to book a wellness appointment',
-    'Can you help me find a personal trainer?',
-    'I need a nutritionist consultation'
-  ], []);
+  const demoCommands = useMemo(() => config.demo.sampleCommands, [config.demo.sampleCommands]);
 
   const startDemoMode = () => {
     setVoiceStatus('listening');
@@ -491,7 +508,28 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
     setTimeout(() => {
       const randomCommand = demoCommands[Math.floor(Math.random() * demoCommands.length)];
       setVoiceMessage(`Demo: "${randomCommand}"`);
-      processVoiceCommand(randomCommand);
+      
+      // Process the command and show results
+      const lowerCommand = randomCommand.toLowerCase();
+      let found = false;
+      for (const [key, results] of Object.entries(demoResults)) {
+        if (lowerCommand.includes(key)) {
+          onSearchResults(results);
+          onShowResults(true);
+          setVoiceMessage(`Found ${key} services for you.`);
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        setVoiceMessage(`I heard: "${randomCommand}" - ${config.demo.fallbackMessage}`);
+      }
+      
+      // Add voice output simulation for demo mode (single call)
+      setTimeout(() => {
+        speakDemoResponse(randomCommand);
+      }, 800);
     }, 500); // Reduced from 800ms to 500ms for faster response
   };
 
@@ -508,6 +546,154 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       console.error('Failed to stop Vapi:', error);
       setVoiceStatus('ready');
     }
+  };
+
+  // Add voice output for demo mode using Web Speech API with queue system
+  const speakDemoResponse = (command) => {
+    if (!('speechSynthesis' in window)) {
+      console.log('🔍 Speech synthesis not supported in this browser');
+      return;
+    }
+
+    // Prevent duplicate speech for the same command
+    if (lastSpeechCommandRef.current === command && speechActiveRef.current) {
+      console.log('🔍 Duplicate speech command, skipping');
+      return;
+    }
+
+    // Add to queue if speech is active
+    if (speechActiveRef.current) {
+      console.log('🔍 Speech active, adding to queue');
+      speechQueueRef.current.push(command);
+      return;
+    }
+
+    // Clear any existing timeout
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+
+    // Cancel any ongoing speech and wait for it to fully stop
+    window.speechSynthesis.cancel();
+    
+    // Set a timeout to ensure speech is fully cancelled before starting new one
+    speechTimeoutRef.current = setTimeout(() => {
+      // Double-check that speech is not active
+      if (speechActiveRef.current) {
+        console.log('🔍 Speech still active, skipping new speech');
+        return;
+      }
+
+      const lowerCommand = command.toLowerCase();
+      let responseText = '';
+
+      // Generate appropriate response based on command
+      if (lowerCommand.includes('massage')) {
+        responseText = 'I found some great massage therapists for you. Serenity Spa offers excellent massage therapy services in downtown.';
+      } else if (lowerCommand.includes('yoga')) {
+        responseText = 'I found yoga classes for you. Zen Yoga Studio offers yoga and meditation classes on the westside.';
+      } else if (lowerCommand.includes('nutrition')) {
+        responseText = 'I found nutrition services for you. Vitality Nutrition provides nutrition counseling in midtown.';
+      } else if (lowerCommand.includes('trainer') || lowerCommand.includes('training')) {
+        responseText = 'I found personal training services for you. FitLife Training offers personal training on the eastside.';
+      } else if (lowerCommand.includes('consultation') || lowerCommand.includes('appointment')) {
+        responseText = 'I can help you schedule a consultation. I found Dr. Sarah Johnson available for general practice consultations.';
+      } else {
+        responseText = 'I understand you need wellness services. I can help you find massage therapy, yoga classes, nutrition counseling, or personal training.';
+      }
+
+      // Get voices and select the best available one
+      const voices = window.speechSynthesis.getVoices();
+      console.log('🔍 Available voices:', voices.length);
+      
+      // Try to find a good quality voice
+      let selectedVoice = null;
+      
+      // First try: High-quality voices
+      selectedVoice = voices.find(voice => 
+        voice.name.includes('Google') && voice.lang.startsWith('en')
+      );
+      
+      // Second try: System voices
+      if (!selectedVoice) {
+        selectedVoice = voices.find(voice => 
+          (voice.name.includes('Microsoft') || 
+           voice.name.includes('Alex') || 
+           voice.name.includes('Samantha') ||
+           voice.name.includes('Victoria') ||
+           voice.name.includes('Daniel')) && 
+          voice.lang.startsWith('en')
+        );
+      }
+      
+      // Third try: Any English voice
+      if (!selectedVoice) {
+        selectedVoice = voices.find(voice => 
+          voice.lang.startsWith('en') && voice.default !== false
+        );
+      }
+      
+      // Last resort: Default voice
+      if (!selectedVoice) {
+        selectedVoice = voices.find(voice => voice.default);
+      }
+
+      // Create speech synthesis utterance
+      const utterance = new SpeechSynthesisUtterance(responseText);
+      utterance.rate = 0.8; // Slightly slower for better clarity
+      utterance.pitch = 1;
+      utterance.volume = 0.9;
+      
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log('🔍 Using voice:', selectedVoice.name);
+      } else {
+        console.log('🔍 Using default voice');
+      }
+
+      // Handle speech events
+      utterance.onstart = () => {
+        console.log('🔍 Demo voice output started');
+        speechActiveRef.current = true;
+        lastSpeechCommandRef.current = command;
+        setVoiceStatus('speaking');
+      };
+
+      utterance.onend = () => {
+        console.log('🔍 Demo voice output ended');
+        speechActiveRef.current = false;
+        setVoiceStatus('ready');
+        setVoiceMessage('Ready to listen (demo mode)');
+        
+        // Process next item in queue
+        if (speechQueueRef.current.length > 0) {
+          const nextCommand = speechQueueRef.current.shift();
+          setTimeout(() => {
+            speakDemoResponse(nextCommand);
+          }, 500);
+        }
+      };
+
+      utterance.onerror = (event) => {
+        console.error('🔍 Speech synthesis error:', event.error);
+        speechActiveRef.current = false;
+        setVoiceStatus('ready');
+        setVoiceMessage('Ready to listen (demo mode)');
+        
+        // Process next item in queue even on error
+        if (speechQueueRef.current.length > 0) {
+          const nextCommand = speechQueueRef.current.shift();
+          setTimeout(() => {
+            speakDemoResponse(nextCommand);
+          }, 500);
+        }
+      };
+
+      // Speak the response
+      console.log('🔍 Speaking:', responseText);
+      window.speechSynthesis.speak(utterance);
+    }, 300); // Longer delay to ensure cancellation is complete
   };
 
   const retryVoiceSetup = useCallback(() => {
@@ -542,40 +728,37 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
     }
   };
 
-  // Memoize wellness results for better performance
-  const wellnessResults = useMemo(() => ({
-    massage: [{ name: 'Serenity Spa', service: 'Massage Therapy', location: 'Downtown', rating: 4.8 }],
-    yoga: [{ name: 'Zen Yoga Studio', service: 'Yoga & Meditation', location: 'Westside', rating: 4.9 }],
-    nutrition: [{ name: 'Vitality Nutrition', service: 'Nutrition Counseling', location: 'Midtown', rating: 4.7 }],
-    trainer: [{ name: 'FitLife Training', service: 'Personal Training', location: 'Eastside', rating: 4.6 }]
-  }), []);
+  // Memoize demo results for better performance
+  const demoResults = useMemo(() => config.demo.results, [config.demo.results]);
 
   const processVoiceCommand = (command) => {
     console.log('Processing voice command:', command);
     const lowerCommand = command.toLowerCase();
 
-    // Simulate processing for wellness services with memoized results
-    if (lowerCommand.includes('massage')) {
-      onSearchResults(wellnessResults.massage);
-      onShowResults(true);
-      setVoiceMessage(`Found massage therapists for you.`);
-    } else if (lowerCommand.includes('yoga')) {
-      onSearchResults(wellnessResults.yoga);
-      onShowResults(true);
-      setVoiceMessage(`Found yoga classes for you.`);
-    } else if (lowerCommand.includes('nutrition')) {
-      onSearchResults(wellnessResults.nutrition);
-      onShowResults(true);
-      setVoiceMessage(`Found nutrition consultants for you.`);
-    } else if (lowerCommand.includes('trainer') || lowerCommand.includes('personal training')) {
-      onSearchResults(wellnessResults.trainer);
-      onShowResults(true);
-      setVoiceMessage(`Found personal trainers for you.`);
+    // Simulate processing for demo services with memoized results
+    if (config.demo.enabled) {
+      let found = false;
+      for (const [key, results] of Object.entries(demoResults)) {
+        if (lowerCommand.includes(key)) {
+          onSearchResults(results);
+          onShowResults(true);
+          setVoiceMessage(`Found ${key} services for you.`);
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        setVoiceMessage(`I heard: "${command}" - ${config.demo.fallbackMessage}`);
+        setTimeout(() => {
+          setVoiceMessage('Ready to listen');
+        }, 2000);
+      }
     } else {
-      setVoiceMessage(`I heard: "${command}" - Try asking for a wellness service like massage, yoga, nutrition, or personal training.`);
+      setVoiceMessage(`I heard: "${command}" - ${config.demo.fallbackMessage}`);
       setTimeout(() => {
         setVoiceMessage('Ready to listen');
-      }, 2000); // Reduced from 3000ms to 2000ms
+      }, 2000);
     }
   };
 
@@ -590,7 +773,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   const handleFunctionCall = async (functionCall) => {
     console.log('🔍 Handling function call:', functionCall);
     
-    if (functionCall.name === 'search_wellness_partners') { // Assuming a wellness search tool
+    if (functionCall.name === 'search_wellness_partners') { // Assuming a search tool
       const { service, location } = functionCall.parameters;
       console.log('🔍 Searching wellness partners with params:', { service, location });
       
@@ -617,10 +800,10 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
       };
     } else {
       console.log('🔍 Unknown function call received:', functionCall.name);
-      setVoiceMessage("I'm a wellness assistant. I can only help you find and book wellness services. Please ask me about services like massage, yoga, or nutrition.");
+      setVoiceMessage(config.demo.fallbackMessage);
       
       return {
-        result: "I'm a wellness assistant. I can only help you find and book wellness services. Please ask me about services like massage, yoga, or nutrition."
+        result: config.demo.fallbackMessage
       };
     }
   };
@@ -675,7 +858,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
           opacity: 0.7
         }}>
           <i className="fas fa-microphone-slash" style={microphoneStyle}></i>
-          <span>Voice Assistant Unavailable</span>
+          <span>{config.ui.unavailableMessage}</span>
         </div>
         
         <div style={voiceStatusStyle}>
@@ -692,7 +875,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
             </>
           ) : (
             <>
-              Voice features require HTTPS connection and microphone access.
+              {config.ui.unavailableDescription}
               <div style={statusSubtextStyle}>
                 Try using a modern browser with HTTPS enabled.
               </div>
@@ -704,7 +887,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
   }
 
   return (
-    <div style={containerStyle}>
+    <div style={{...containerStyle, ...style}} className={className}>
       <button 
         onClick={toggleVoiceAssistant}
         style={voiceButtonStyle}
@@ -717,7 +900,7 @@ const VoiceAssistant = ({ onSearchResults, onShowResults }) => {
         )}
         <span>
           {voiceStatus === 'loading' ? 'Preparing Assistant...' : 
-           isListening ? 'Stop Listening' : 'Start Voice Assistant'}
+           isListening ? 'Stop Listening' : config.ui.buttonText}
         </span>
       </button>
       

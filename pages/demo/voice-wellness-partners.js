@@ -4,6 +4,7 @@ import Footer from '../../components/Footer';
 import Contact from '../../components/Contact';
 import Calendar from '../../components/Calendar';
 import VoiceAssistant from '../../components/VoiceAssistant';
+import { WELLNESS_CONFIG } from '../../components/VoiceAssistantConfigs';
 
 const VoiceWellnessPartners = () => {
   const [searchResults, setSearchResults] = useState([]);
@@ -49,7 +50,11 @@ const VoiceWellnessPartners = () => {
             </p>
             
             {/* Voice Assistant Component */}
-            <VoiceAssistant updateSearchResults={updateSearchResults} />
+            <VoiceAssistant 
+              config={WELLNESS_CONFIG}
+              onSearchResults={updateSearchResults}
+              onShowResults={setShowResults}
+            />
           </div>
         </section>
 

@@ -4,6 +4,7 @@ import Footer from '../../components/Footer';
 import Contact from '../../components/Contact';
 import Calendar from '../../components/Calendar';
 import VoiceAssistant from '../../components/VoiceAssistant';
+import { CLINIC_CONFIG } from '../../components/VoiceAssistantConfigs';
 
 const VoicePatientOnboarding = () => {
   const [searchResults, setSearchResults] = useState([]);
@@ -51,7 +52,11 @@ const VoicePatientOnboarding = () => {
             
 
             {/* Voice Assistant Component */}
-            <VoiceAssistant updateSearchResults={updateSearchResults} />
+            <VoiceAssistant 
+              config={CLINIC_CONFIG}
+              onSearchResults={updateSearchResults}
+              onShowResults={setShowResults}
+            />
             
                     {/* Dashboard Link */}
                     <div style={{ marginTop: '30px' }}>
