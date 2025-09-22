@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     const privateApiKey = process.env.VAPI_API_PRIVATE_KEY;
     const publicApiKey = process.env.VAPI_API_PUBLIC_KEY || process.env.VAPI_API_KEY || 'ef22cbd0-8219-484c-9f4e-8008a4ca43b7';
     
-    // Check if this is a request for wellness partners (from the wellness demo page)
+    // Check if this is a request for wellness partners (from the wellness product page)
     const isWellnessRequest = req.headers.referer && req.headers.referer.includes('voice-wellness-partners');
     
     console.log('🔍 Vapi Init Request Details:');

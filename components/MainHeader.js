@@ -3,7 +3,7 @@ import styles from './MainHeader.module.css'
 
 export default function MainHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isDemoOpen, setIsDemoOpen] = useState(false)
+  const [isProductOpen, setIsProductOpen] = useState(false)
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -13,12 +13,12 @@ export default function MainHeader() {
     setIsMenuOpen(false)
   }
 
-  const toggleDemo = () => {
-    setIsDemoOpen(!isDemoOpen)
+  const toggleProduct = () => {
+    setIsProductOpen(!isProductOpen)
   }
 
-  const closeDemo = () => {
-    setIsDemoOpen(false)
+  const closeProduct = () => {
+    setIsProductOpen(false)
   }
 
   return (
@@ -31,33 +31,36 @@ export default function MainHeader() {
         {/* Desktop Navigation */}
         <nav className={styles.nav}>
           <a href="/" className={styles.navLink}>Home</a>
-          <a href="/projects" className={styles.navLink}>Projects</a>
-          <a href="/#services" className={styles.navLink}>Services</a>
-          <a href="/#about" className={styles.navLink}>About</a>
           <div className={styles.dropdown}>
             <button 
               className={`${styles.navLink} ${styles.dropdownToggle}`}
-              onClick={toggleDemo}
-              onMouseEnter={() => setIsDemoOpen(true)}
-              onMouseLeave={() => setIsDemoOpen(false)}
+              onClick={toggleProduct}
+              onMouseEnter={() => setIsProductOpen(true)}
+              onMouseLeave={() => setIsProductOpen(false)}
             >
-              Demo
+              Product
               <span className={styles.dropdownArrow}>▼</span>
             </button>
-            <div className={`${styles.dropdownMenu} ${isDemoOpen ? styles.dropdownOpen : ''}`}
-                 onMouseEnter={() => setIsDemoOpen(true)}
-                 onMouseLeave={() => setIsDemoOpen(false)}>
-              {/* <a href="/demo/voice-hotel-booking" className={styles.dropdownLink} onClick={closeDemo}>
+            <div className={`${styles.dropdownMenu} ${isProductOpen ? styles.dropdownOpen : ''}`}
+                 onMouseEnter={() => setIsProductOpen(true)}
+                 onMouseLeave={() => setIsProductOpen(false)}>
+              {/* <a href="/product/voice-hotel-booking" className={styles.dropdownLink} onClick={closeProduct}>
                 Voice Hotel Booking
               </a> */}
-              <a href="/demo/voice-wellness-partners" className={styles.dropdownLink} onClick={closeDemo}>
-                Wellness Partners
+              <a href="/product/voice-real-estate-service" className={styles.dropdownLink} onClick={closeProduct}>
+                Real Estate Service
               </a>
-              <a href="/demo/voice-patient-onboarding" className={styles.dropdownLink} onClick={closeDemo}>
+              <a href="/product/voice-patient-onboarding" className={styles.dropdownLink} onClick={closeProduct}>
                 Patient Onboarding
+              </a>
+              <a href="/product/voice-wellness-partners" className={styles.dropdownLink} onClick={closeProduct}>
+                Wellness Partners
               </a>
             </div>
           </div>
+          <a href="/projects" className={styles.navLink}>Projects</a>
+          <a href="/#services" className={styles.navLink}>Services</a>
+          <a href="/#about" className={styles.navLink}>About</a>
           <a href="/#contact" className={styles.navLink}>Contact</a>
         </nav>
 
@@ -78,25 +81,28 @@ export default function MainHeader() {
       {/* Mobile Navigation Menu */}
       <nav className={`${styles.mobileNav} ${isMenuOpen ? styles.mobileNavOpen : ''}`}>
         <a href="/" className={styles.mobileNavLink} onClick={closeMenu}>Home</a>
-        <a href="/projects" className={styles.mobileNavLink} onClick={closeMenu}>Projects</a>
-        <a href="/#services" className={styles.mobileNavLink} onClick={closeMenu}>Services</a>
-        <a href="/#about" className={styles.mobileNavLink} onClick={closeMenu}>About</a>
         <div className={styles.mobileDropdown}>
-          <button className={styles.mobileDropdownToggle} onClick={toggleDemo}>
-            Demo <span className={styles.dropdownArrow}>▼</span>
+          <button className={styles.mobileDropdownToggle} onClick={toggleProduct}>
+            Product <span className={styles.dropdownArrow}>▼</span>
           </button>
-          <div className={`${styles.mobileDropdownMenu} ${isDemoOpen ? styles.mobileDropdownOpen : ''}`}>
-            {/* <a href="/demo/voice-hotel-booking" className={styles.mobileNavLink} onClick={closeMenu}>
+          <div className={`${styles.mobileDropdownMenu} ${isProductOpen ? styles.mobileDropdownOpen : ''}`}>
+            {/* <a href="/product/voice-hotel-booking" className={styles.mobileNavLink} onClick={closeMenu}>
               Voice Hotel Booking
             </a> */}
-            <a href="/demo/voice-wellness-partners" className={styles.mobileNavLink} onClick={closeMenu}>
-              Voice Wellness Partners
+            <a href="/product/voice-real-estate-service" className={styles.mobileNavLink} onClick={closeMenu}>
+              Real Estate Service
             </a>
-            <a href="/demo/voice-patient-onboarding" className={styles.mobileNavLink} onClick={closeMenu}>
-              Voice Patient Onboarding
+            <a href="/product/voice-patient-onboarding" className={styles.mobileNavLink} onClick={closeMenu}>
+              Patient Onboarding
+            </a>
+            <a href="/product/voice-wellness-partners" className={styles.mobileNavLink} onClick={closeMenu}>
+              Wellness Partners
             </a>
           </div>
         </div>
+        <a href="/projects" className={styles.mobileNavLink} onClick={closeMenu}>Projects</a>
+        <a href="/#services" className={styles.mobileNavLink} onClick={closeMenu}>Services</a>
+        <a href="/#about" className={styles.mobileNavLink} onClick={closeMenu}>About</a>
         <a href="/#contact" className={styles.mobileNavLink} onClick={closeMenu}>Contact</a>
       </nav>
     </header>

@@ -11,11 +11,11 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
   const { isMenuOpen, setIsMenuOpen } = useMenuContext()
 
   const sidebarItems = [
-    { icon: "🏠", label: "Dashboard", href: "/demo/clinic" },
-    { icon: "📅", label: "Reservations", href: "/demo/clinic/reservations" },
-    { icon: "👥", label: "Patients", href: "/demo/clinic/patients" },
-    { icon: "⏰", label: "Treatments", href: "/demo/clinic/treatments" },
-    { icon: "👨‍⚕️", label: "Staff List", href: "/demo/clinic/staff" },
+    { icon: "🏠", label: "Dashboard", href: "/product/clinic" },
+    { icon: "📅", label: "Reservations", href: "/product/clinic/reservations" },
+    { icon: "👥", label: "Patients", href: "/product/clinic/patients" },
+    { icon: "⏰", label: "Treatments", href: "/product/clinic/treatments" },
+    { icon: "👨‍⚕️", label: "Staff List", href: "/product/clinic/staff" },
   ]
 
   const handleMenuClick = (item) => {
@@ -70,7 +70,7 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
 
         {/* Back to Voice Onboarding */}
         <div className={styles.sidebarFooter}>
-          <Link href="/demo/voice-patient-onboarding" className={styles.backLink}>
+          <Link href="/product/voice-patient-onboarding" className={styles.backLink}>
             <span className={styles.backIcon}>←</span>
             Back to Voice Onboarding
           </Link>

@@ -9,8 +9,8 @@ export default function ClinicDashboard() {
   return (
     <>
       <Head>
-        <title>ClinicPro Dashboard - Voice Patient Onboarding Demo | Bright Mind Vision</title>
-        <meta name="description" content="Demo clinic management dashboard showcasing voice-powered patient onboarding system." />
+        <title>ClinicPro Dashboard - Voice Patient Onboarding Product | Bright Mind Vision</title>
+        <meta name="description" content="Product clinic management dashboard showcasing voice-powered patient onboarding system." />
         <link rel="icon" href="/bmv_favicon.png" />
       </Head>
 
@@ -52,8 +52,8 @@ export default function ClinicDashboard() {
               </div>
             </div>
 
-            {/* Demo Banner */}
-            <div className="demo-banner" style={{ 
+            {/* Product Banner */}
+            <div className="product-banner" style={{ 
               backgroundColor: '#dbeafe', 
               border: '1px solid #93c5fd',
               padding: '12px 16px',
@@ -66,14 +66,14 @@ export default function ClinicDashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ fontSize: '20px' }}>🎤</div>
                 <h4 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: '#1e40af' }}>
-                  Voice Patient Onboarding Demo
+                  Voice Patient Onboarding Product
                 </h4>
               </div>
               <p style={{ fontSize: '12px', margin: 0, color: '#1e3a8a', lineHeight: '1.4' }}>
                 Dashboard showcasing voice-powered patient onboarding system
               </p>
               <Link 
-                href="/demo/voice-patient-onboarding"
+                href="/product/voice-patient-onboarding"
                 style={{
                   padding: '8px 12px',
                   backgroundColor: '#1e40af',
@@ -96,21 +96,21 @@ export default function ClinicDashboard() {
             {/* Mobile-specific responsive styles */}
             <style jsx>{`
               @media (min-width: 768px) {
-                .demo-banner {
+                .product-banner {
                   flex-direction: row !important;
                   align-items: center !important;
                   justify-content: space-between !important;
                   padding: 16px 24px !important;
                   margin: 0 24px 24px 24px !important;
                 }
-                .demo-banner h4 {
+                .product-banner h4 {
                   font-size: 16px !important;
                   margin-bottom: 4px !important;
                 }
-                .demo-banner p {
+                .product-banner p {
                   font-size: 14px !important;
                 }
-                .demo-banner a {
+                .product-banner a {
                   padding: 8px 16px !important;
                   font-size: 14px !important;
                   align-self: auto !important;

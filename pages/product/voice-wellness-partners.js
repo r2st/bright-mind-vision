@@ -19,8 +19,8 @@ const VoiceWellnessPartners = () => {
   return (
     <>
       <Head>
-        <title>Voice Wellness Partners Demo | Bright Mind Vision</title>
-        <meta name="description" content="Voice-activated wellness partners booking demo by Bright Mind Vision" />
+        <title>Voice Wellness Partners Product | Bright Mind Vision</title>
+        <meta name="description" content="Voice-activated wellness partners booking product by Bright Mind Vision" />
         <link rel="icon" href="/bmv_favicon.png" />
       </Head>
 
@@ -35,9 +35,22 @@ const VoiceWellnessPartners = () => {
           minHeight: 'calc(100vh - 90px)', // Adjust for header height
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          {/* Grid Pattern Overlay */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><defs><pattern id=\'grid\' width=\'10\' height=\'10\' patternUnits=\'userSpaceOnUse\'><path d=\'M 10 0 L 0 0 0 10\' fill=\'none\' stroke=\'rgba(255,255,255,0.1)\' stroke-width=\'0.5\'/></pattern></defs><rect width=\'100\' height=\'100\' fill=\'url(%23grid)\'/></svg>")',
+            opacity: 0.3,
+            pointerEvents: 'none'
+          }}></div>
+          <div style={{ maxWidth: '800px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
             <div style={{ marginBottom: '30px' }}>
               <div style={{ fontSize: '4rem' }}>🧘‍♀️</div>
               <h1 style={{ fontSize: '3rem', fontWeight: '700', margin: 0, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>

@@ -2,6 +2,7 @@ import { useRouter } from 'next/router'
 import { useState, createContext, useContext } from 'react'
 import MainHeader from './MainHeader'
 import ClinicHeader from './clinic/ClinicHeader'
+import RealEstateHeader from './real-estate/RealEstateHeader'
 
 // Create context for menu state
 const MenuContext = createContext()
@@ -24,8 +25,13 @@ export default function HeaderWrapper() {
   const { isMenuOpen, setIsMenuOpen } = useMenuContext()
 
   // Show clinic header for clinic pages
-  if (router.pathname.startsWith('/demo/clinic')) {
+  if (router.pathname.startsWith('/product/clinic')) {
     return <ClinicHeader isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
+  }
+
+  // Show real estate header for real estate pages
+  if (router.pathname.startsWith('/product/real-estate')) {
+    return <RealEstateHeader isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
   }
 
   // Show main header for all other pages

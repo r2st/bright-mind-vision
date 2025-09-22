@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Vapi from '@vapi-ai/web';
-import { WELLNESS_CONFIG } from './VoiceAssistantConfigs';
 
 const VoiceAssistant = ({ 
-  config = WELLNESS_CONFIG,
+  config,
   onSearchResults, 
   onShowResults,
   className = '',
   style = {}
 }) => {
+  // Ensure config is provided
+  if (!config) {
+    throw new Error('VoiceAssistant requires a config prop');
+  }
+
   const [isListening, setIsListening] = useState(false);
-  const [voiceMessage, setVoiceMessage] = useState(config.ui.initialMessage);
+  const [voiceMessage, setVoiceMessage] = useState(config.ui?.initialMessage || 'Click to start voice assistant');
   const [voiceStatus, setVoiceStatus] = useState('ready'); // 'ready', 'loading', 'listening', 'speaking', 'error'
   const [vapi, setVapi] = useState(null);
   const [vapiReady, setVapiReady] = useState(false);
-  const [assistantId, setAssistantId] = useState(null);
   const [audioPermissionGranted, setAudioPermissionGranted] = useState(false);
   const [assistantIdLoaded, setAssistantIdLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -27,15 +29,17 @@ const VoiceAssistant = ({
   const speechTimeoutRef = useRef(null); // Track speech timeout
   const lastSpeechCommandRef = useRef(''); // Track last speech command to prevent duplicates
   const speechQueueRef = useRef([]); // Track speech queue
+  const fillerAudioRef = useRef(null); // Track filler audio
+  const fillerAudioTimeoutRef = useRef(null); // Track filler audio timeout
 
   // Check browser compatibility for voice features
   const [isVoiceSupported, setIsVoiceSupported] = useState(true);
   
   useEffect(() => {
-    // Check browser compatibility only on client side
+    // Check browser compatibility in background, don't block initialization
     const checkVoiceSupport = () => {
       // Only run on client side
-      if (typeof window === 'undefined') return false;
+      if (typeof window === 'undefined') return true; // Assume supported on server
       
       // Check if getUserMedia is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -72,14 +76,21 @@ const VoiceAssistant = ({
       return true;
     };
     
-    setIsVoiceSupported(checkVoiceSupport());
+    // Set initial state optimistically, then check in background
+    setIsVoiceSupported(true);
+    
+    // Check compatibility in background
+    setTimeout(() => {
+      setIsVoiceSupported(checkVoiceSupport());
+    }, 0);
   }, []);
 
   // Local storage utilities - memoized for performance
   const STORAGE_KEYS = useMemo(() => config.storageKeys, [config.storageKeys]);
 
-  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-  const FAST_TIMEOUT = 2000; // 2 seconds for faster fallback
+  // Use configurable settings with fallbacks
+  const CACHE_DURATION = config.settings?.cacheDuration || 24 * 60 * 60 * 1000; // 24 hours
+  const FAST_TIMEOUT = config.settings?.fastTimeout || 2000; // 2 seconds for faster fallback
 
   const getCachedAssistantId = useCallback(() => {
     try {
@@ -122,7 +133,6 @@ const VoiceAssistant = ({
     const cachedId = getCachedAssistantId();
     if (cachedId) {
       assistantIdRef.current = cachedId;
-      setAssistantId(cachedId);
       setAssistantIdLoaded(true);
       lastAssistantIdRef.current = cachedId;
       console.log('🔍 Using cached assistant ID for instant start');
@@ -150,7 +160,6 @@ const VoiceAssistant = ({
       
       if (data.success && data.assistantId) {
         assistantIdRef.current = data.assistantId;
-        setAssistantId(data.assistantId);
         setAssistantIdLoaded(true);
         lastAssistantIdRef.current = data.assistantId;
         cacheAssistantId(data.assistantId);
@@ -164,11 +173,10 @@ const VoiceAssistant = ({
       // Use last known assistant ID if available
       if (lastAssistantIdRef.current) {
         assistantIdRef.current = lastAssistantIdRef.current;
-        setAssistantId(lastAssistantIdRef.current);
         setAssistantIdLoaded(true);
         console.log('🔍 Using last known assistant ID:', lastAssistantIdRef.current);
       } else {
-        console.log('🔍 No assistant ID available, will use demo mode');
+        console.log('🔍 No assistant ID available, will use product mode');
       }
     } finally {
       initializationRef.current = false;
@@ -177,21 +185,19 @@ const VoiceAssistant = ({
 
   // Initialize Vapi SDK with aggressive optimizations
   const initializeVapi = useCallback(async () => {
-    if (initializationRef.current) return; // Prevent multiple initializations
-    initializationRef.current = true;
+    // Note: initializationRef.current is managed by toggleVoiceAssistant
     
     // Skip initialization if voice features are not supported
     if (!isVoiceSupported) {
       console.log('🔍 Voice features not supported, skipping initialization');
       setVoiceStatus('error');
       setVoiceMessage('Voice features not supported in this browser');
-      initializationRef.current = false;
-      return;
+      throw new Error('Voice features not supported in this browser');
     }
     
     console.log('🔍 Initializing Vapi...');
-    setVoiceStatus('loading');
-    setVoiceMessage('Loading voice assistant...');
+    setVoiceStatus('ready');
+    setVoiceMessage('Voice assistant ready');
 
     // Start pre-loading assistant ID immediately (non-blocking)
     preloadAssistantId().catch(error => {
@@ -199,7 +205,8 @@ const VoiceAssistant = ({
     });
 
     // Run microphone permission and Vapi initialization in parallel with fast timeouts
-    const [audioResult, vapiResult] = await Promise.allSettled([
+    // Return a promise that resolves when initialization is complete
+    return Promise.allSettled([
       // Request microphone permission with timeout and proper checks
       Promise.race([
         (async () => {
@@ -235,7 +242,7 @@ const VoiceAssistant = ({
           console.log('🔍 Audio permission granted.');
           return true;
         })(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Audio permission timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Audio permission timeout')), 1000))
       ]).catch(audioError => {
         console.warn('🔍 Audio permission denied or timeout:', audioError);
         setAudioPermissionGranted(false);
@@ -270,13 +277,16 @@ const VoiceAssistant = ({
         return false;
       }),
       
-      // Initialize Vapi with very fast timeout
+      // Initialize Vapi with very fast timeout and dynamic import
       (async () => {
         const publicApiKey = process.env.NEXT_PUBLIC_VAPI_API_KEY || 'YOUR_DEFAULT_VAPI_PUBLIC_KEY';
         
         if (publicApiKey && publicApiKey.length > 10) {
           console.log('🔍 Creating Vapi instance with public key...');
           try {
+            // Dynamic import VAPI to avoid blocking initial load
+            const { default: Vapi } = await import('@vapi-ai/web');
+            
             // Add very fast timeout to Vapi initialization
             const initPromise = new Promise((resolve, reject) => {
               try {
@@ -292,7 +302,7 @@ const VoiceAssistant = ({
             });
 
             const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Vapi initialization timeout')), 3000); // 3 second timeout for faster fallback
+              setTimeout(() => reject(new Error('Vapi initialization timeout')), config.settings?.timeout || 1500);
             });
 
             const vapiInstance = await Promise.race([initPromise, timeoutPromise]);
@@ -307,36 +317,42 @@ const VoiceAssistant = ({
           return null;
         }
       })()
-    ]);
+    ]).then(([audioResult, vapiResult]) => {
+      // Handle results asynchronously
+      const audioGranted = audioResult.status === 'fulfilled' && audioResult.value;
+      const vapiInstance = vapiResult.status === 'fulfilled' ? vapiResult.value : null;
 
-    // Handle results
-    const audioGranted = audioResult.status === 'fulfilled' && audioResult.value;
-    const vapiInstance = vapiResult.status === 'fulfilled' ? vapiResult.value : null;
-
-    if (audioGranted && vapiInstance) {
-      setVapiReady(true);
-      setVoiceStatus('ready');
-      setVoiceMessage('Voice assistant ready');
-    } else if (audioGranted) {
-      setVapiReady(true);
-      setVapi(null);
+      if (audioGranted && vapiInstance) {
+        setVapi(vapiInstance);
+        setVapiReady(true);
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready');
+        return { success: true, vapi: vapiInstance, audioGranted: true };
+      } else if (audioGranted) {
+        setVapiReady(true);
+        setVapi(null);
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready (demo mode)');
+        return { success: true, vapi: null, audioGranted: true };
+      } else {
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready (demo mode)');
+        return { success: true, vapi: null, audioGranted: false };
+      }
+    }).catch(error => {
+      console.error('🔍 Initialization error:', error);
       setVoiceStatus('ready');
       setVoiceMessage('Voice assistant ready (demo mode)');
-    } else {
-      setVoiceStatus('error');
-      setVoiceMessage('Voice assistant not available');
-    }
-    
-    initializationRef.current = false;
+      throw error;
+    });
   }, [preloadAssistantId]);
 
-  useEffect(() => {
-    if (isVoiceSupported) {
-      initializeVapi();
-    }
-  }, [initializeVapi, isVoiceSupported]);
+  // Remove automatic initialization - only initialize when user clicks button
+  // useEffect(() => {
+  //   initializeVapi();
+  // }, [initializeVapi]);
 
-  // Cleanup speech synthesis on unmount
+  // Cleanup speech synthesis and filler audio on unmount
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -348,6 +364,7 @@ const VoiceAssistant = ({
         speechTimeoutRef.current = null;
       }
       speechQueueRef.current = []; // Clear speech queue
+      stopFillerAudio(); // Stop any playing filler audio
     };
   }, []);
 
@@ -394,6 +411,8 @@ const VoiceAssistant = ({
     vapiInstance.on('speech-start', () => {
       console.log('🔍 Speech started');
       setVoiceStatus('speaking');
+      // Stop filler audio when agent starts speaking
+      stopFillerAudio();
     });
 
     vapiInstance.on('speech-end', () => {
@@ -420,6 +439,8 @@ const VoiceAssistant = ({
       } else if (message.type === 'speech-start') {
         console.log('🔍 Assistant started speaking');
         setVoiceStatus('speaking');
+        // Stop filler audio when assistant starts speaking
+        stopFillerAudio();
       } else if (message.type === 'speech-end') {
         console.log('🔍 Assistant finished speaking');
         setVoiceStatus('listening');
@@ -439,11 +460,175 @@ const VoiceAssistant = ({
         return;
       }
       
+      // Handle start method errors (like 403 Forbidden)
+      if (error.type === 'start-method-error') {
+        console.log('🔍 VAPI start method error, falling back to demo mode');
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready (demo mode)');
+        setIsListening(false);
+        return;
+      }
+      
       setVoiceStatus('error');
       setVoiceMessage('Voice assistant error');
       setIsListening(false);
     });
   }, [onShowResults]);
+
+  // Stop filler audio
+  const stopFillerAudio = useCallback(() => {
+    try {
+      if (fillerAudioRef.current) {
+        const { oscillators, gainNode, filterNode } = fillerAudioRef.current;
+        
+        // Create a smooth fade-out
+        if (audioContextRef.current && gainNode) {
+          const audioContext = audioContextRef.current;
+          gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
+          
+          // Stop all oscillators after fade-out
+          setTimeout(() => {
+            oscillators.forEach(oscillator => {
+              try {
+                oscillator.stop();
+              } catch (e) {
+                // Oscillator might already be stopped
+              }
+            });
+          }, 300);
+        }
+        
+        fillerAudioRef.current = null;
+      }
+      
+      if (fillerAudioTimeoutRef.current) {
+        clearTimeout(fillerAudioTimeoutRef.current);
+        fillerAudioTimeoutRef.current = null;
+      }
+      
+      console.log('🔍 Stopped soothing filler audio');
+    } catch (error) {
+      console.warn('🔍 Error stopping filler audio:', error);
+    }
+  }, []);
+
+  // Create and play soft filler music/ring tone
+  const playFillerAudio = useCallback(() => {
+    if (!audioContextRef.current) return;
+    
+    try {
+      // Stop any existing filler audio
+      stopFillerAudio();
+      
+      const audioContext = audioContextRef.current;
+      
+      // Create a more soothing ambient sound with multiple oscillators
+      const oscillator1 = audioContext.createOscillator();
+      const oscillator2 = audioContext.createOscillator();
+      const oscillator3 = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      const filterNode = audioContext.createBiquadFilter();
+      
+      // Create a gentle ambient pad sound
+      oscillator1.type = 'sine';
+      oscillator1.frequency.setValueAtTime(220, audioContext.currentTime); // A3 - lower, warmer
+      
+      oscillator2.type = 'sine';
+      oscillator2.frequency.setValueAtTime(330, audioContext.currentTime); // E4 - harmonious fifth
+      
+      oscillator3.type = 'sine';
+      oscillator3.frequency.setValueAtTime(440, audioContext.currentTime); // A4 - higher harmonic
+      
+      // Add a gentle low-pass filter for warmth
+      filterNode.type = 'lowpass';
+      filterNode.frequency.setValueAtTime(800, audioContext.currentTime);
+      filterNode.Q.setValueAtTime(1, audioContext.currentTime);
+      
+      // Create a very gentle fade-in and fade-out
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 1.0); // Very gentle fade in
+      gainNode.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 2.0); // Hold softly
+      gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 3.0); // Gentle fade out
+      
+      // Connect the nodes
+      oscillator1.connect(filterNode);
+      oscillator2.connect(filterNode);
+      oscillator3.connect(filterNode);
+      filterNode.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Store reference for stopping
+      fillerAudioRef.current = { 
+        oscillators: [oscillator1, oscillator2, oscillator3], 
+        gainNode, 
+        filterNode 
+      };
+      
+      // Start all oscillators
+      oscillator1.start();
+      oscillator2.start();
+      oscillator3.start();
+      
+      // Auto-stop after 3 seconds
+      fillerAudioTimeoutRef.current = setTimeout(() => {
+        stopFillerAudio();
+      }, 3000);
+      
+      console.log('🔍 Playing soothing ambient audio...');
+    } catch (error) {
+      console.warn('🔍 Failed to play filler audio:', error);
+    }
+  }, []);
+
+  const startListeningWithVapi = async (vapiInstance) => {
+    // Pre-initialize audio context for faster startup
+    if (!audioContextRef.current && typeof AudioContext !== 'undefined') {
+      audioContextRef.current = new AudioContext();
+    }
+
+    // Ensure audio context is resumed for audio playback
+    try {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+        console.log('🔍 Audio context resumed for playback');
+      }
+    } catch (audioError) {
+      console.warn('🔍 Could not resume audio context:', audioError);
+    }
+
+    try {
+      console.log('🔍 Starting Vapi call...');
+      
+      // Play filler audio to indicate connection is being established
+      playFillerAudio();
+      
+      // Start VAPI call with assistant ID from config
+      const assistantId = config.assistantId || '81f49cc7-c40a-433d-8606-63c84babe3a9';
+      console.log('🔍 Starting VAPI call with assistant ID:', assistantId);
+      try {
+        vapiInstance.start(assistantId); // Pass assistant ID as per documentation
+        setVoiceStatus('listening');
+        setVoiceMessage('Listening...');
+        setIsListening(true);
+      } catch (startError) {
+        console.error('🔍 Failed to start VAPI call:', startError);
+        // Stop filler audio on error
+        stopFillerAudio();
+        // Fall back to demo mode if VAPI start fails
+        console.log('🔍 VAPI start failed, using demo mode...');
+        setVoiceStatus('ready');
+        setVoiceMessage('Voice assistant ready (demo mode)');
+        setIsListening(false);
+      }
+    } catch (error) {
+      console.error('🔍 Vapi error:', error);
+      // Stop filler audio on error
+      stopFillerAudio();
+      setVoiceStatus('error');
+      setVoiceMessage('Voice assistant error');
+      setIsListening(false);
+    }
+  };
 
   const startListening = async () => {
     if (!vapi && !vapiReady) {
@@ -470,8 +655,8 @@ const VoiceAssistant = ({
       if (vapi) {
         console.log('🔍 Starting Vapi call...');
         
-        // Start VAPI call with assistant ID (as per documentation)
-        const assistantId = '81f49cc7-c40a-433d-8606-63c84babe3a9';
+        // Start VAPI call with assistant ID from config
+        const assistantId = config.assistantId || '81f49cc7-c40a-433d-8606-63c84babe3a9';
         console.log('🔍 Starting VAPI call with assistant ID:', assistantId);
         try {
           vapi.start(assistantId); // Pass assistant ID as per documentation
@@ -482,7 +667,9 @@ const VoiceAssistant = ({
           console.error('🔍 Failed to start VAPI call:', startError);
           // Fall back to demo mode if VAPI start fails
           console.log('🔍 VAPI start failed, using demo mode...');
-          startDemoMode();
+          setVoiceStatus('ready');
+          setVoiceMessage('Voice assistant ready (demo mode)');
+          setIsListening(false);
         }
       } else {
         // Demo mode - simulate voice recognition
@@ -497,7 +684,7 @@ const VoiceAssistant = ({
   };
 
   // Memoize demo commands for better performance
-  const demoCommands = useMemo(() => config.demo.sampleCommands, [config.demo.sampleCommands]);
+  const demoCommands = useMemo(() => config.demo?.sampleCommands || [], [config.demo?.sampleCommands]);
 
   const startDemoMode = () => {
     setVoiceStatus('listening');
@@ -523,14 +710,14 @@ const VoiceAssistant = ({
       }
       
       if (!found) {
-        setVoiceMessage(`I heard: "${randomCommand}" - ${config.demo.fallbackMessage}`);
+        setVoiceMessage(`I heard: "${randomCommand}" - ${config.demo?.fallbackMessage || 'Demo mode'}`);
       }
       
       // Add voice output simulation for demo mode (single call)
       setTimeout(() => {
         speakDemoResponse(randomCommand);
-      }, 800);
-    }, 500); // Reduced from 800ms to 500ms for faster response
+      }, 200);
+    }, 200); // Reduced for faster response
   };
 
   const stopListening = () => {
@@ -539,8 +726,10 @@ const VoiceAssistant = ({
         vapi.stop();
         console.log('🔍 Vapi stopped');
       }
+      // Stop any playing filler audio
+      stopFillerAudio();
       setVoiceStatus('ready');
-      setVoiceMessage(vapi ? 'Ready to listen' : 'Ready to listen (demo mode)');
+      setVoiceMessage(vapi ? 'Ready to listen' : 'Ready to listen (product mode)');
       setIsListening(false);
     } catch (error) {
       console.error('Failed to stop Vapi:', error);
@@ -603,47 +792,21 @@ const VoiceAssistant = ({
         responseText = 'I understand you need wellness services. I can help you find massage therapy, yoga classes, nutrition counseling, or personal training.';
       }
 
-      // Get voices and select the best available one
+      // Get voices and select the best available one (optimized for speed)
       const voices = window.speechSynthesis.getVoices();
       console.log('🔍 Available voices:', voices.length);
       
-      // Try to find a good quality voice
-      let selectedVoice = null;
-      
-      // First try: High-quality voices
-      selectedVoice = voices.find(voice => 
-        voice.name.includes('Google') && voice.lang.startsWith('en')
-      );
-      
-      // Second try: System voices
-      if (!selectedVoice) {
-        selectedVoice = voices.find(voice => 
-          (voice.name.includes('Microsoft') || 
-           voice.name.includes('Alex') || 
-           voice.name.includes('Samantha') ||
-           voice.name.includes('Victoria') ||
-           voice.name.includes('Daniel')) && 
-          voice.lang.startsWith('en')
-        );
-      }
-      
-      // Third try: Any English voice
-      if (!selectedVoice) {
-        selectedVoice = voices.find(voice => 
-          voice.lang.startsWith('en') && voice.default !== false
-        );
-      }
-      
-      // Last resort: Default voice
-      if (!selectedVoice) {
-        selectedVoice = voices.find(voice => voice.default);
-      }
+      // Quick voice selection - prioritize first good English voice
+      let selectedVoice = voices.find(voice => 
+        voice.lang.startsWith('en') && 
+        (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+      ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
 
       // Create speech synthesis utterance
       const utterance = new SpeechSynthesisUtterance(responseText);
-      utterance.rate = 0.8; // Slightly slower for better clarity
+      utterance.rate = config.settings?.speechRate || 0.8; // Configurable speech rate
       utterance.pitch = 1;
-      utterance.volume = 0.9;
+      utterance.volume = config.settings?.speechVolume || 0.9; // Configurable speech volume
       
       if (selectedVoice) {
         utterance.voice = selectedVoice;
@@ -654,24 +817,24 @@ const VoiceAssistant = ({
 
       // Handle speech events
       utterance.onstart = () => {
-        console.log('🔍 Demo voice output started');
+        console.log('🔍 Product voice output started');
         speechActiveRef.current = true;
         lastSpeechCommandRef.current = command;
         setVoiceStatus('speaking');
       };
 
       utterance.onend = () => {
-        console.log('🔍 Demo voice output ended');
+        console.log('🔍 Product voice output ended');
         speechActiveRef.current = false;
         setVoiceStatus('ready');
-        setVoiceMessage('Ready to listen (demo mode)');
+        setVoiceMessage('Ready to listen (product mode)');
         
         // Process next item in queue
         if (speechQueueRef.current.length > 0) {
           const nextCommand = speechQueueRef.current.shift();
           setTimeout(() => {
             speakDemoResponse(nextCommand);
-          }, 500);
+          }, 100);
         }
       };
 
@@ -679,25 +842,26 @@ const VoiceAssistant = ({
         console.error('🔍 Speech synthesis error:', event.error);
         speechActiveRef.current = false;
         setVoiceStatus('ready');
-        setVoiceMessage('Ready to listen (demo mode)');
+        setVoiceMessage('Ready to listen (product mode)');
         
         // Process next item in queue even on error
         if (speechQueueRef.current.length > 0) {
           const nextCommand = speechQueueRef.current.shift();
           setTimeout(() => {
             speakDemoResponse(nextCommand);
-          }, 500);
+          }, 100);
         }
       };
 
       // Speak the response
       console.log('🔍 Speaking:', responseText);
       window.speechSynthesis.speak(utterance);
-    }, 300); // Longer delay to ensure cancellation is complete
+    }, 50); // Reduced delay for faster speech start
   };
 
   const retryVoiceSetup = useCallback(() => {
-    if (retryCount < 3) {
+    const maxRetries = config.settings?.retryAttempts || 3;
+    if (retryCount < maxRetries) {
       console.log(`🔍 Retrying voice setup (attempt ${retryCount + 1}/3)`);
       setRetryCount(prev => prev + 1);
       setVoiceStatus('loading');
@@ -715,7 +879,43 @@ const VoiceAssistant = ({
     }
   }, [retryCount, initializeVapi]);
 
-  const toggleVoiceAssistant = () => {
+  const toggleVoiceAssistant = async () => {
+    // Initialize on first click if not already done
+    if (!vapiReady && !initializationRef.current) {
+      setVoiceMessage('Initializing voice assistant...');
+      setVoiceStatus('loading');
+      initializationRef.current = true;
+      
+      try {
+        const result = await initializeVapi();
+        
+        // Now that initialization is complete, start listening immediately
+        if (result && result.success) {
+          // Use the vapi instance directly from the result
+          if (result.vapi) {
+            startListeningWithVapi(result.vapi);
+          } else {
+            startListening(); // Demo mode
+          }
+          initializationRef.current = false;
+        } else {
+          throw new Error('Initialization failed');
+        }
+      } catch (error) {
+        console.error('🔍 Initialization failed:', error);
+        setVoiceMessage('Voice assistant initialization failed');
+        setVoiceStatus('error');
+        initializationRef.current = false;
+      }
+      return;
+    }
+
+    // If initialization is in progress, show loading message
+    if (initializationRef.current) {
+      setVoiceMessage('Voice assistant initializing...');
+      return;
+    }
+
     if (!vapiReady) {
       setVoiceMessage('Voice assistant loading...');
       return;
@@ -729,38 +929,8 @@ const VoiceAssistant = ({
   };
 
   // Memoize demo results for better performance
-  const demoResults = useMemo(() => config.demo.results, [config.demo.results]);
+  const demoResults = useMemo(() => config.demo?.results || {}, [config.demo?.results]);
 
-  const processVoiceCommand = (command) => {
-    console.log('Processing voice command:', command);
-    const lowerCommand = command.toLowerCase();
-
-    // Simulate processing for demo services with memoized results
-    if (config.demo.enabled) {
-      let found = false;
-      for (const [key, results] of Object.entries(demoResults)) {
-        if (lowerCommand.includes(key)) {
-          onSearchResults(results);
-          onShowResults(true);
-          setVoiceMessage(`Found ${key} services for you.`);
-          found = true;
-          break;
-        }
-      }
-      
-      if (!found) {
-        setVoiceMessage(`I heard: "${command}" - ${config.demo.fallbackMessage}`);
-        setTimeout(() => {
-          setVoiceMessage('Ready to listen');
-        }, 2000);
-      }
-    } else {
-      setVoiceMessage(`I heard: "${command}" - ${config.demo.fallbackMessage}`);
-      setTimeout(() => {
-        setVoiceMessage('Ready to listen');
-      }, 2000);
-    }
-  };
 
   // Memoize mock results for better performance
   const mockWellnessResults = useMemo(() => [
@@ -800,10 +970,10 @@ const VoiceAssistant = ({
       };
     } else {
       console.log('🔍 Unknown function call received:', functionCall.name);
-      setVoiceMessage(config.demo.fallbackMessage);
+      setVoiceMessage(config.demo?.fallbackMessage || 'Demo mode');
       
       return {
-        result: config.demo.fallbackMessage
+        result: config.demo?.fallbackMessage || 'Demo mode'
       };
     }
   };
@@ -815,7 +985,7 @@ const VoiceAssistant = ({
     color: 'white',
     border: 'none',
     borderRadius: '30px',
-    cursor: audioPermissionGranted ? 'pointer' : 'not-allowed',
+    cursor: 'pointer',
     fontSize: '18px',
     fontWeight: '700',
     display: 'inline-flex',
@@ -823,7 +993,7 @@ const VoiceAssistant = ({
     gap: '12px',
     transition: 'background-color 0.3s ease, transform 0.3s ease',
     boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-    opacity: audioPermissionGranted ? 1 : 0.6,
+    opacity: 1,
     transform: isListening ? 'scale(1.05)' : 'scale(1)',
     minWidth: '200px',
     justifyContent: 'center'
@@ -844,54 +1014,12 @@ const VoiceAssistant = ({
   const microphoneStyle = { fontSize: '20px' };
   const statusSubtextStyle = { fontSize: '14px', opacity: 0.8, marginTop: '5px' };
 
-  // Show loading state initially, then check voice support
-  if (!isVoiceSupported) {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    return (
-      <div style={containerStyle}>
-        <div style={{
-          ...voiceButtonStyle,
-          backgroundColor: '#f3f4f6',
-          color: '#6b7280',
-          cursor: 'not-allowed',
-          opacity: 0.7
-        }}>
-          <i className="fas fa-microphone-slash" style={microphoneStyle}></i>
-          <span>{config.ui.unavailableMessage}</span>
-        </div>
-        
-        <div style={voiceStatusStyle}>
-          {isMobile ? (
-            <>
-              Voice features require HTTPS connection and microphone access.
-              <div style={statusSubtextStyle}>
-                <strong>Mobile Issue:</strong> This demo is running on HTTP localhost, but mobile devices require HTTPS for voice features.
-                <br />
-                <strong>Solution:</strong> Access this demo via HTTPS or use a desktop browser.
-                <br />
-                <strong>For testing:</strong> Use Chrome on desktop or deploy to HTTPS.
-              </div>
-            </>
-          ) : (
-            <>
-              {config.ui.unavailableDescription}
-              <div style={statusSubtextStyle}>
-                Try using a modern browser with HTTPS enabled.
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{...containerStyle, ...style}} className={className}>
       <button 
         onClick={toggleVoiceAssistant}
         style={voiceButtonStyle}
-        disabled={!vapiReady || voiceStatus === 'loading' || !audioPermissionGranted}
+        disabled={voiceStatus === 'loading'}
       >
         {voiceStatus === 'loading' ? (
           <i className="fas fa-spinner fa-spin" style={spinnerStyle}></i>

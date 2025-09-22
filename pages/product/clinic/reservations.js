@@ -107,7 +107,7 @@ export default function Reservations() {
                          appointment.treatment.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          appointment.doctor.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'All' || appointment.status === filterStatus;
-    const matchesDate = filterDate === 'All' || appointment.date === '2024-01-22'; // Simplified for demo
+    const matchesDate = filterDate === 'All' || appointment.date === '2024-01-22'; // Simplified for product
     return matchesSearch && matchesStatus && matchesDate;
   });
 

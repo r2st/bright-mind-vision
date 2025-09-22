@@ -2,11 +2,29 @@
 
 // Wellness Partners Configuration
 export const WELLNESS_CONFIG = {
+  assistantId: '81f49cc7-c40a-433d-8606-63c84babe3a9', // Default wellness assistant
   storageKeys: {
     ASSISTANT_ID: 'vapi_wellness_assistant_id',
     ASSISTANT_TIMESTAMP: 'vapi_wellness_assistant_timestamp'
   },
   apiEndpoint: '/api/vapi-init',
+  theme: {
+    primaryColor: '#667eea',
+    secondaryColor: '#764ba2',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    icon: '🧘‍♀️',
+    industry: 'wellness'
+  },
+  settings: {
+    timeout: 1500, // VAPI initialization timeout (reduced for faster response)
+    retryAttempts: 3, // Number of retry attempts
+    cacheDuration: 24 * 60 * 60 * 1000, // 24 hours cache
+    fastTimeout: 1000, // Fast fallback timeout (reduced)
+    speechRate: 0.8, // Speech synthesis rate
+    speechVolume: 0.9, // Speech synthesis volume
+    enableDemoMode: true, // Enable demo mode fallback
+    enableVoiceOutput: true // Enable voice output in demo mode
+  },
   assistant: {
     name: 'Wellness Assistant',
     description: 'I help you find and book wellness services',
@@ -14,7 +32,7 @@ export const WELLNESS_CONFIG = {
     endMessage: 'Thank you for using Wellness Partners! Take care of yourself!',
     systemPrompt: 'You are a wellness partners assistant. You help users find and book wellness services like massage therapy, yoga classes, nutrition counseling, and personal training. Keep responses concise and friendly.'
   },
-  demo: {
+  product: {
     enabled: true,
     sampleCommands: [
       'I need a massage therapist',
@@ -47,11 +65,29 @@ export const WELLNESS_CONFIG = {
 
 // Hotel Booking Configuration
 export const HOTEL_CONFIG = {
+  assistantId: '81f49cc7-c40a-433d-8606-63c84babe3a9', // Hotel booking assistant
   storageKeys: {
     ASSISTANT_ID: 'vapi_hotel_assistant_id',
     ASSISTANT_TIMESTAMP: 'vapi_hotel_assistant_timestamp'
   },
   apiEndpoint: '/api/vapi-init',
+  theme: {
+    primaryColor: '#f59e0b',
+    secondaryColor: '#d97706',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    icon: '🏨',
+    industry: 'hospitality'
+  },
+  settings: {
+    timeout: 1500, // VAPI initialization timeout (reduced for faster response)
+    retryAttempts: 3,
+    cacheDuration: 24 * 60 * 60 * 1000,
+    fastTimeout: 1000, // Fast fallback timeout (reduced)
+    speechRate: 0.8,
+    speechVolume: 0.9,
+    enableDemoMode: true,
+    enableVoiceOutput: true
+  },
   assistant: {
     name: 'Hotel Booking Assistant',
     description: 'I help you find and book hotels',
@@ -59,7 +95,7 @@ export const HOTEL_CONFIG = {
     endMessage: 'Thank you for using LuxuryStay! Have a great trip!',
     systemPrompt: 'You are Riley, a hotel booking assistant for LuxuryStay. You help users find and book hotels. You understand hotel requirements like destination, dates, guests, and rooms. Keep responses concise and friendly.'
   },
-  demo: {
+  product: {
     enabled: true,
     sampleCommands: [
       'I need a hotel in New York',
@@ -92,11 +128,29 @@ export const HOTEL_CONFIG = {
 
 // Clinic/Patient Onboarding Configuration
 export const CLINIC_CONFIG = {
+  assistantId: '81f49cc7-c40a-433d-8606-63c84babe3a9', // Clinic assistant
   storageKeys: {
     ASSISTANT_ID: 'vapi_clinic_assistant_id',
     ASSISTANT_TIMESTAMP: 'vapi_clinic_assistant_timestamp'
   },
   apiEndpoint: '/api/vapi-init',
+  theme: {
+    primaryColor: '#10b981',
+    secondaryColor: '#059669',
+    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    icon: '🏥',
+    industry: 'healthcare'
+  },
+  settings: {
+    timeout: 1500, // VAPI initialization timeout (reduced for faster response)
+    retryAttempts: 3,
+    cacheDuration: 24 * 60 * 60 * 1000,
+    fastTimeout: 1000, // Fast fallback timeout (reduced)
+    speechRate: 0.8,
+    speechVolume: 0.9,
+    enableDemoMode: true,
+    enableVoiceOutput: true
+  },
   assistant: {
     name: 'Clinic Assistant',
     description: 'I help with patient onboarding and appointment booking',
@@ -104,7 +158,7 @@ export const CLINIC_CONFIG = {
     endMessage: 'Thank you for choosing our clinic! We look forward to seeing you.',
     systemPrompt: 'You are a clinic assistant for patient onboarding. You help patients book appointments, collect their information (name, phone, preferred time), and answer questions about clinic services. Keep responses professional and helpful.'
   },
-  demo: {
+  product: {
     enabled: true,
     sampleCommands: [
       'I need to book an appointment',
@@ -134,15 +188,98 @@ export const CLINIC_CONFIG = {
   }
 };
 
+// Real Estate Customer Service Configuration
+export const REAL_ESTATE_CONFIG = {
+  assistantId: 'fb646c75-0df4-4342-b340-f2628f6015f1', // Using working assistant ID temporarily
+  storageKeys: {
+    ASSISTANT_ID: 'vapi_real_estate_assistant_id',
+    ASSISTANT_TIMESTAMP: 'vapi_real_estate_assistant_timestamp'
+  },
+  apiEndpoint: '/api/vapi-init',
+  theme: {
+    primaryColor: '#8b5cf6',
+    secondaryColor: '#7c3aed',
+    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+    icon: '🏠',
+    industry: 'real-estate'
+  },
+  settings: {
+    timeout: 1500, // VAPI initialization timeout (reduced for faster response)
+    retryAttempts: 3,
+    cacheDuration: 24 * 60 * 60 * 1000,
+    fastTimeout: 1000, // Fast fallback timeout (reduced)
+    speechRate: 0.8,
+    speechVolume: 0.9,
+    enableDemoMode: true,
+    enableVoiceOutput: true
+  },
+  assistant: {
+    name: 'Real Estate Assistant',
+    description: 'I help you with real estate inquiries and customer service',
+    firstMessage: 'Hi! I\'m your real estate assistant. I can help you with property inquiries, scheduling viewings, market information, and general real estate questions. How can I assist you today?',
+    endMessage: 'Thank you for contacting our real estate services! Have a great day!',
+    systemPrompt: 'You are a professional real estate customer service assistant. You help clients with property inquiries, scheduling viewings, market information, pricing questions, and general real estate services. Keep responses helpful, professional, and informative.'
+  },
+  demo: {
+    enabled: true,
+    sampleCommands: [
+      'I\'m looking for a 3-bedroom house',
+      'What properties are available in downtown?',
+      'Schedule a property viewing',
+      'What\'s the market price for condos?',
+      'I need help with property investment',
+      'Can you show me luxury homes?',
+      'I want to sell my property'
+    ],
+    results: {
+      'house': [{ name: 'Downtown Family Home', type: '3-Bedroom House', location: 'Downtown', price: '$450,000', features: 'Modern kitchen, garden, garage' }],
+      'condo': [{ name: 'City Center Condo', type: '2-Bedroom Condo', location: 'City Center', price: '$320,000', features: 'Pool, gym, concierge' }],
+      'luxury': [{ name: 'Executive Villa', type: '5-Bedroom Villa', location: 'Uptown', price: '$1,200,000', features: 'Pool, wine cellar, home theater' }],
+      'investment': [{ name: 'Investment Property', type: 'Duplex', location: 'Midtown', price: '$380,000', features: 'Rental income potential, renovated' }]
+    },
+    fallbackMessage: 'I\'m a real estate assistant. I can help you with property searches, market information, scheduling viewings, and general real estate questions. Please ask me about properties, pricing, or real estate services.'
+  },
+  voice: {
+    provider: 'openai',
+    voiceId: 'alloy'
+  },
+  ui: {
+    buttonText: 'Start Real Estate Assistant',
+    initialMessage: 'Click to start real estate assistant',
+    unavailableMessage: 'Real Estate Assistant Unavailable',
+    unavailableDescription: 'Voice features require HTTPS connection and microphone access. Try using a modern browser with HTTPS enabled.'
+  }
+};
+
 // Custom Configuration Builder
 export const createCustomConfig = (overrides = {}) => {
   return {
+    assistantId: '81f49cc7-c40a-433d-8606-63c84babe3a9', // Default assistant
     storageKeys: {
       ASSISTANT_ID: 'vapi_custom_assistant_id',
       ASSISTANT_TIMESTAMP: 'vapi_custom_assistant_timestamp',
       ...overrides.storageKeys
     },
     apiEndpoint: '/api/vapi-init',
+    theme: {
+      primaryColor: '#667eea',
+      secondaryColor: '#764ba2',
+      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      icon: '🤖',
+      industry: 'general',
+      ...overrides.theme
+    },
+    settings: {
+      timeout: 1500, // VAPI initialization timeout (reduced for faster response)
+      retryAttempts: 3,
+      cacheDuration: 24 * 60 * 60 * 1000,
+      fastTimeout: 1000, // Fast fallback timeout (reduced)
+      speechRate: 0.8,
+      speechVolume: 0.9,
+      enableDemoMode: true,
+      enableVoiceOutput: true,
+      ...overrides.settings
+    },
     assistant: {
       name: 'Custom Assistant',
       description: 'I help you with your requests',
@@ -151,12 +288,12 @@ export const createCustomConfig = (overrides = {}) => {
       systemPrompt: 'You are a helpful assistant. Keep responses concise and friendly.',
       ...overrides.assistant
     },
-    demo: {
+    product: {
       enabled: true,
       sampleCommands: ['How can you help me?', 'What services do you offer?'],
       results: {},
       fallbackMessage: 'I\'m here to help. Please ask me about our services.',
-      ...overrides.demo
+      ...overrides.product
     },
     voice: {
       provider: 'openai',
