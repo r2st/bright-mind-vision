@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import ClinicLayout from '../../../components/ClinicLayout';
+import SEO from '../../../components/SEO';
 
 export default function Reservations() {
   const [activeMenu, setActiveMenu] = useState("Reservations");
@@ -122,11 +122,12 @@ export default function Reservations() {
 
   return (
     <>
-      <Head>
-        <title>Reservations - Clinic Dashboard | Bright Mind Vision</title>
-        <meta name="description" content="Manage patient appointments and reservations." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Reservations - Clinic Dashboard"
+        description="Manage patient appointments and reservations."
+        keywords="appointment management, clinic reservations, patient scheduling, medical appointments, clinic booking system"
+        url="https://brightmindvision.com/product/clinic/reservations"
+      />
 
       <ClinicLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         {/* Top Navigation */}

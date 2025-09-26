@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import ClinicLayout from '../../../components/ClinicLayout';
+import SEO from '../../../components/SEO';
 
 export default function Patients() {
   const [activeMenu, setActiveMenu] = useState("Patients");
@@ -108,11 +108,12 @@ export default function Patients() {
 
   return (
     <>
-      <Head>
-        <title>Patients - Clinic Dashboard | Bright Mind Vision</title>
-        <meta name="description" content="Manage patient records and information." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Patients - Clinic Dashboard"
+        description="Manage patient records and information."
+        keywords="patient management, clinic dashboard, healthcare management, patient records, medical records, clinic system"
+        url="https://brightmindvision.com/product/clinic/patients"
+      />
 
       <ClinicLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         {/* Top Navigation */}

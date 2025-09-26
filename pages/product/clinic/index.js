@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import Link from 'next/link';
 import ClinicLayout from '../../../components/ClinicLayout';
+import SEO from '../../../components/SEO';
 
 export default function ClinicDashboard() {
   const [activeMenu, setActiveMenu] = useState("Dashboard");
 
   return (
     <>
-      <Head>
-        <title>ClinicPro Dashboard - Voice Patient Onboarding Product | Bright Mind Vision</title>
-        <meta name="description" content="Product clinic management dashboard showcasing voice-powered patient onboarding system." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="ClinicPro Dashboard - Voice Patient Onboarding Product"
+        description="Product clinic management dashboard showcasing voice-powered patient onboarding system."
+        keywords="clinic dashboard, patient onboarding, voice AI, clinic management, healthcare dashboard, medical AI"
+        url="https://brightmindvision.com/product/clinic"
+      />
 
       <ClinicLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
             {/* Top Navigation */}

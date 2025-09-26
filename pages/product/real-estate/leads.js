@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import RealEstateLayout from '../../../components/RealEstateLayout';
+import SEO from '../../../components/SEO';
 
 export default function Leads() {
   const [activeMenu, setActiveMenu] = useState("Leads");
@@ -148,11 +148,12 @@ export default function Leads() {
 
   return (
     <>
-      <Head>
-        <title>Leads - RealEstatePro Dashboard | Bright Mind Vision</title>
-        <meta name="description" content="Manage real estate leads and customer inquiries from voice assistant interactions." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Leads - RealEstatePro Dashboard"
+        description="Manage real estate leads and customer inquiries from voice assistant interactions."
+        keywords="real estate leads, lead management, property inquiries, real estate CRM, customer leads, property leads"
+        url="https://brightmindvision.com/product/real-estate/leads"
+      />
 
       <RealEstateLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         {/* Top Navigation */}

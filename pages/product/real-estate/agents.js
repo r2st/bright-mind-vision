@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import RealEstateLayout from '../../../components/RealEstateLayout';
+import SEO from '../../../components/SEO';
 
 export default function Agents() {
   const [activeMenu, setActiveMenu] = useState("Agents");
@@ -129,11 +129,12 @@ export default function Agents() {
 
   return (
     <>
-      <Head>
-        <title>Agents - RealEstatePro Dashboard | Bright Mind Vision</title>
-        <meta name="description" content="Manage real estate agents and their performance with voice assistant integration." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Agents - RealEstatePro Dashboard"
+        description="Manage real estate agents and their performance with voice assistant integration."
+        keywords="real estate agents, agent management, real estate team, property agents, real estate performance"
+        url="https://brightmindvision.com/product/real-estate/agents"
+      />
 
       <RealEstateLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         {/* Top Navigation */}

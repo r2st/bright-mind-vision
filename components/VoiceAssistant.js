@@ -166,24 +166,24 @@ const VoiceAssistant = ({
       </button>
       
       <div style={styles.status}>
-        {voiceMessage}
-        {assistantIdLoaded && (
+          {voiceMessage}
+          {assistantIdLoaded && (
           <div style={styles.statusSubtext}>
-            ✓ Assistant ready for instant start
-          </div>
-        )}
-        {voiceStatus === 'error' && retryCount < 3 && (
-          <button
-            onClick={retryVoiceSetup}
-            style={{
-              marginTop: '10px',
-              padding: '8px 16px',
+              ✓ Assistant ready for instant start
+            </div>
+          )}
+          {voiceStatus === 'error' && retryCount < 3 && (
+            <button
+              onClick={retryVoiceSetup}
+              style={{
+                marginTop: '10px',
+                padding: '8px 16px',
               backgroundColor: '#3A7A6B',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px',
-              cursor: 'pointer',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer',
               transition: 'background-color 0.2s ease',
               textShadow: 'none'
             }}
@@ -203,11 +203,11 @@ const VoiceAssistant = ({
                 e.target.style.background = '#3A7A6B';
               }
             }}
-          >
-            Retry Voice Setup
-          </button>
-        )}
-      </div>
+            >
+              Retry Voice Setup
+            </button>
+          )}
+        </div>
     </div>
   );
 };

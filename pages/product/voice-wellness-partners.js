@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import Footer from '../../components/Footer';
 import Contact from '../../components/Contact';
 import Calendar from '../../components/Calendar';
 import VoiceAssistant from '../../components/VoiceAssistant';
+import SEO from '../../components/SEO';
 import { WELLNESS_CONFIG } from '../../components/VoiceAssistantConfigs';
 
 const VoiceWellnessPartners = () => {
@@ -18,11 +18,12 @@ const VoiceWellnessPartners = () => {
 
   return (
     <>
-      <Head>
-        <title>Voice Wellness Partners Product | Bright Mind Vision</title>
-        <meta name="description" content="Voice-activated wellness partners booking product by Bright Mind Vision" />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Voice Wellness Partners Product"
+        description="Voice-activated wellness partners booking product by Bright Mind Vision. Streamline wellness service bookings with AI-powered voice automation."
+        keywords="voice AI, wellness booking, health services, voice assistant, wellness automation, health AI, booking system"
+        url="https://brightmindvision.com/product/voice-wellness-partners"
+      />
 
 
       <main>

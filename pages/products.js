@@ -566,12 +566,8 @@ const styles = `
     min-width: 180px;
   }
 
-  /* Container */
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-  }
+
+
 
   /* Responsive Design */
   @media (max-width: 768px) {
@@ -579,6 +575,8 @@ const styles = `
       grid-template-columns: 1fr;
       gap: 24px;
     }
+    
+    
 
     .product-highlights {
       grid-template-columns: 1fr;
@@ -654,6 +652,8 @@ const styles = `
     .cta-section {
       padding: 40px 15px;
     }
+    
+    
 
     .statistics-section {
       padding: 30px 15px;
@@ -870,7 +870,7 @@ const Products = () => {
   const filteredProducts = activeTab === 'all' ? products : products.filter(product => product.category === activeTab);
 
   return (
-    <>
+    <div className="container">
       <style dangerouslySetInnerHTML={{ __html: styles }} />
       <SEO 
         title="AI Voice Assistant Products - Bright Mind Vision"
@@ -882,15 +882,11 @@ const Products = () => {
       <HeroSection 
         title="AI Voice Assistant Products"
         subtitle="Transform your business with intelligent AI solutions"
-        description="Transform your business operations with our cutting-edge AI voice assistant products. From healthcare to real estate, we provide Transform your business with intelligent AI solutions that enhance customer experience and streamline workflows."
+        description="Transform your business operations with our cutting-edge AI voice assistant products. From healthcare to real estate, we provide intelligent AI solutions that enhance customer experience and streamline workflows."
       >
-        <div className="cta-actions">
-          <Link href="#contact" className="cta-button primary large">
-            Get Started
-          </Link>
-          <Link href="/projects" className="cta-button secondary large">
-            View Case Studies
-          </Link>
+        <div className="hero-actions">
+          <a href="#contact" className="cta-button primary">Get Started</a>
+          <a href="/projects" className="cta-button secondary">View Case Studies</a>
         </div>
       </HeroSection>
 
@@ -1139,7 +1135,7 @@ const Products = () => {
       </main>
 
       <Footer />
-    </>
+    </div>
   );
 };
 

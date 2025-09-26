@@ -1,4 +1,3 @@
-import BMVIcon from './BMVIcon'
 
 export default function HeroSection({ 
   title, 
@@ -6,10 +5,11 @@ export default function HeroSection({
   description, 
   children,
   showLogo = true,
-  logoSize = 100
+  logoSize = 100,
+  style = {}
 }) {
   return (
-    <section className="hero">
+    <section className="hero" style={style}>
       <div className="hero-content">
         {showLogo && (
           <div className="hero-logo">

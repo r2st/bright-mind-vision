@@ -5,24 +5,6 @@ import Calendar from '@components/Calendar'
 import HeroSection from '@components/HeroSection'
 import SEO from '@components/SEO'
 
-// CSS Styles - moved to top for proper loading
-const styles = `
-  /* Ensure proper spacing and layout */
-  .hero {
-    margin-top: 0 !important;
-    padding-top: 90px !important;
-  }
-  
-  .container {
-    padding-top: 0 !important;
-  }
-  
-  /* Override any conflicting styles */
-  main {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-`
 
 export default function Projects() {
   const projects = [
@@ -128,8 +110,6 @@ export default function Projects() {
         image="https://brightmindvision.com/bmv-logo.png"
       />
 
-      {/* Inline CSS for proper spacing */}
-      <style jsx>{styles}</style>
 
       {/* Calendly Script */}
       <Script

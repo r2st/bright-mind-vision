@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import Favicon from './Favicon';
+import { useFavicon } from './Favicon';
 
 const SEO = ({
   title = "Bright Mind Vision - Transform your business with intelligent AI solutions",
@@ -7,7 +7,7 @@ const SEO = ({
   keywords = "AI agents, artificial intelligence, business automation, AI development, intelligent agents, machine learning, Bright Mind Vision",
   author = "Bright Mind Vision",
   url = "https://brightmindvision.com",
-  image = "https://brightmindvision.com/bmv_favicon.png",
+  image = "https://brightmindvision.com/favicon.svg",
   type = "website",
   siteName = "Bright Mind Vision",
   robots = "index, follow",
@@ -19,6 +19,9 @@ const SEO = ({
   customMeta = [],
   structuredData = null
 }) => {
+  // Use dynamic favicon hook
+  useFavicon("#ffffff", 32, 6);
+  
   // Construct full title
   const fullTitle = title.includes("Bright Mind Vision") ? title : `${title} | Bright Mind Vision`;
   
@@ -59,10 +62,10 @@ const SEO = ({
       {/* Canonical URL */}
       <link rel="canonical" href={canonicalUrl} />
       
-      {/* Favicon */}
-      <link rel="icon" href="/bmv_favicon.png" />
-      <link rel="alternate icon" href="/favicon.svg" />
-      <Favicon />
+      {/* Favicon - Static SVG file */}
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      <link rel="icon" href="/favicon.svg" />
+      <meta name="theme-color" content="#667eea" />
       
       {/* Custom Meta Tags */}
       {customMeta.map((meta, index) => (

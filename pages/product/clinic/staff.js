@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import ClinicLayout from '../../../components/ClinicLayout';
+import SEO from '../../../components/SEO';
 
 export default function Staff() {
   const [activeMenu, setActiveMenu] = useState("Staff List");
@@ -123,11 +123,12 @@ export default function Staff() {
 
   return (
     <>
-      <Head>
-        <title>Staff - Clinic Dashboard | Bright Mind Vision</title>
-        <meta name="description" content="Manage clinic staff and personnel." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Staff - Clinic Dashboard"
+        description="Manage clinic staff and personnel."
+        keywords="staff management, clinic personnel, healthcare staff, medical team, clinic administration"
+        url="https://brightmindvision.com/product/clinic/staff"
+      />
 
       <ClinicLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
         {/* Top Navigation */}

@@ -1,7 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="32" cy="12" r="8" fill="#4A9B8E"/>
-  <circle cx="12" cy="52" r="8" fill="#4A9B8E"/>
-  <circle cx="52" cy="52" r="8" fill="#4A9B8E"/>
-  <line x1="32" y1="20" x2="12" y2="44" stroke="#4A9B8E" stroke-width="5"/>
-  <line x1="32" y1="20" x2="52" y2="44" stroke="#4A9B8E" stroke-width="5"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="BM favicon" shape-rendering="geometricPrecision">
+  <title>BM Favicon</title>
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+    <!-- B -->
+    <path d="M16 14 L16 50" />
+    <path d="M16 14 H28 Q36 14 28 24 H16" />
+    <path d="M16 32 H30 Q38 32 30 50 H16" />
+
+    <!-- M -->
+    <path d="M36 50 L36 14 L46 30 L56 14 L56 50" />
+  </g>
 </svg>

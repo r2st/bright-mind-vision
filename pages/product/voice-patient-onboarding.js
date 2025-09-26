@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import Footer from '../../components/Footer';
 import Contact from '../../components/Contact';
 import Calendar from '../../components/Calendar';
 import VoiceAssistant from '../../components/VoiceAssistant';
+import SEO from '../../components/SEO';
 import { CLINIC_CONFIG } from '../../components/VoiceAssistantConfigs';
 
 const VoicePatientOnboarding = () => {
@@ -19,11 +19,12 @@ const VoicePatientOnboarding = () => {
 
   return (
     <>
-      <Head>
-        <title>Voice Agent for Patient Onboarding - Private Clinics | Bright Mind Vision</title>
-        <meta name="description" content="Voice-enabled assistant for streamlining patient appointment process in private clinics worldwide. Automated patient onboarding and appointment management." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Voice Agent for Patient Onboarding - Private Clinics"
+        description="Voice-enabled assistant for streamlining patient appointment process in private clinics worldwide. Automated patient onboarding and appointment management."
+        keywords="voice AI, patient onboarding, clinic automation, healthcare AI, appointment scheduling, voice assistant, medical AI"
+        url="https://brightmindvision.com/product/voice-patient-onboarding"
+      />
 
 
       <main>

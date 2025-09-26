@@ -42,6 +42,7 @@ code {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 120px 20px;
+  padding-top: 90px !important;
   min-height: 90vh;
   display: flex;
   align-items: center;
@@ -75,8 +76,13 @@ code {
 .hero-logo-image {
   height: 100px;
   width: auto;
-  filter: brightness(0) invert(1);
   opacity: 0.95;
+  filter: brightness(0) invert(1);
+}
+
+.hero-logo-image svg {
+  height: 100%;
+  width: auto;
 }
 
 .hero-title {
@@ -732,11 +738,17 @@ code {
 @media (max-width: 768px) {
   .hero {
     padding: 100px 20px;
+    padding-top: 90px !important;
     min-height: 85vh;
   }
   
   .hero-logo-image {
     height: 80px;
+  }
+  
+  .hero-logo-image svg {
+    height: 100%;
+    width: auto;
   }
   
   .hero-title {
@@ -859,12 +871,18 @@ code {
   
   .hero {
     padding: 80px 15px;
+    padding-top: 90px !important;
     min-height: 80vh;
     margin-top: 0;
   }
   
   .hero-logo-image {
     height: 70px;
+  }
+  
+  .hero-logo-image svg {
+    height: 100%;
+    width: auto;
   }
   
   .hero-title {

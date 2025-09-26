@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import Link from 'next/link';
 import Footer from '../../components/Footer';
 import Contact from '../../components/Contact';
 import Calendar from '../../components/Calendar';
 import VoiceAssistant from '../../components/VoiceAssistant';
+import SEO from '../../components/SEO';
 import { REAL_ESTATE_CONFIG } from '../../components/VoiceAssistantConfigs';
 
 const VoiceRealEstateService = () => {
@@ -19,11 +19,12 @@ const VoiceRealEstateService = () => {
 
   return (
     <>
-      <Head>
-        <title>Voice Agent for Real Estate Customer Service | Bright Mind Vision</title>
-        <meta name="description" content="AI-powered voice assistant for real estate customer service. Automate property inquiries, schedule viewings, and provide 24/7 customer support for real estate agencies worldwide." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="Voice Agent for Real Estate Customer Service"
+        description="AI-powered voice assistant for real estate customer service. Automate property inquiries, schedule viewings, and provide 24/7 customer support for real estate agencies worldwide."
+        keywords="voice AI, real estate AI, property automation, customer service AI, real estate voice assistant, property inquiries, viewing scheduling"
+        url="https://brightmindvision.com/product/voice-real-estate-service"
+      />
 
       <main>
         {/* Hero Section */}

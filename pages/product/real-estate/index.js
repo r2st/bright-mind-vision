@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import Head from 'next/head';
 import Link from 'next/link';
 import RealEstateLayout from '../../../components/RealEstateLayout';
+import SEO from '../../../components/SEO';
 
 export default function RealEstateDashboard() {
   const [activeMenu, setActiveMenu] = useState("Dashboard");
 
   return (
     <>
-      <Head>
-        <title>RealEstatePro Dashboard - Voice Real Estate Service | Bright Mind Vision</title>
-        <meta name="description" content="Real estate management dashboard showcasing voice-powered customer service system." />
-        <link rel="icon" href="/bmv_favicon.png" />
-      </Head>
+      <SEO 
+        title="RealEstatePro Dashboard - Voice Real Estate Service"
+        description="Real estate management dashboard showcasing voice-powered customer service system."
+        keywords="real estate dashboard, property management, real estate AI, voice customer service, property automation"
+        url="https://brightmindvision.com/product/real-estate"
+      />
 
       <RealEstateLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
             {/* Top Navigation */}
