@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function CustomCalendar() {
   const [selectedDate, setSelectedDate] = useState('');
@@ -177,11 +177,21 @@ Please confirm this booking.
     );
   }
 
-  // Get user's timezone information
-  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const timezoneAbbr = new Date().toLocaleTimeString('en-US', { 
-    timeZoneName: 'short' 
-  }).split(' ')[2] || 'Local';
+  // Get user's timezone information (client-side only to prevent hydration mismatch)
+  const [userTimezone, setUserTimezone] = useState('Local');
+  const [timezoneAbbr, setTimezoneAbbr] = useState('Local');
+  
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tzAbbr = new Date().toLocaleTimeString('en-US', { 
+        timeZoneName: 'short' 
+      }).split(' ')[2] || 'Local';
+      setUserTimezone(tz);
+      setTimezoneAbbr(tzAbbr);
+    }
+  }, []);
 
   return (
     <div className="custom-calendar">
