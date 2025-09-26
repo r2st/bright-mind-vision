@@ -1,8 +1,28 @@
-import Head from 'next/head'
 import Script from 'next/script'
 import Footer from '@components/Footer'
 import Contact from '@components/Contact'
 import Calendar from '@components/Calendar'
+import HeroSection from '@components/HeroSection'
+import SEO from '@components/SEO'
+
+// CSS Styles - moved to top for proper loading
+const styles = `
+  /* Ensure proper spacing and layout */
+  .hero {
+    margin-top: 0 !important;
+    padding-top: 90px !important;
+  }
+  
+  .container {
+    padding-top: 0 !important;
+  }
+  
+  /* Override any conflicting styles */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+`
 
 export default function Home() {
   const benefitsListStyle = { listStyle: 'none', padding: 0 };
@@ -12,36 +32,16 @@ export default function Home() {
 
   return (
     <div className="container">
-      <Head>
-        <title>Bright Mind Vision - AI Software Solutions</title>
-        <meta name="description" content="Empowering businesses with cutting-edge AI solutions, machine learning, and intelligent automation. Transform your business with our LLM technologies and AI consulting services." />
-        <meta name="keywords" content="AI solutions, machine learning, LLM technologies, artificial intelligence, business automation, AI consulting, data analytics, smart contracts, blockchain AI" />
-        <meta name="author" content="Bright Mind Vision" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        
-        {/* Open Graph Meta Tags */}
-        <meta property="og:title" content="Bright Mind Vision - AI Software Solutions" />
-        <meta property="og:description" content="Empowering businesses with cutting-edge AI solutions, machine learning, and intelligent automation." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://brightmindvision.com" />
-        <meta property="og:image" content="https://brightmindvision.com/bmv-logo.png" />
-        <meta property="og:site_name" content="Bright Mind Vision" />
-        
-        {/* Twitter Card Meta Tags */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Bright Mind Vision - AI Software Solutions" />
-        <meta name="twitter:description" content="Empowering businesses with cutting-edge AI solutions, machine learning, and intelligent automation." />
-        <meta name="twitter:image" content="https://brightmindvision.com/bmv-logo.png" />
-        
-        {/* Additional SEO Meta Tags */}
-        <meta name="robots" content="index, follow" />
-        <meta name="language" content="English" />
-        <meta name="revisit-after" content="7 days" />
-        
-        <link rel="icon" href="/bmv_favicon.png" />
-        <link rel="canonical" href="https://brightmindvision.com" />
-      </Head>
+      <SEO 
+        title="Bright Mind Vision - AI Software Solutions"
+        description="Empowering businesses with cutting-edge AI solutions, machine learning, and intelligent automation. Transform your business with our LLM technologies and AI consulting services."
+        keywords="AI solutions, machine learning, LLM technologies, artificial intelligence, business automation, AI consulting, data analytics, smart contracts, blockchain AI"
+        url="https://brightmindvision.com"
+        image="https://brightmindvision.com/bmv-logo.png"
+      />
 
+      {/* Inline CSS for proper spacing */}
+      <style jsx>{styles}</style>
 
       {/* Calendly Script */}
       <Script
@@ -49,22 +49,16 @@ export default function Home() {
         strategy="lazyOnload"
       />
 
-      <main>
-        {/* Hero Section */}
-        <section id="home" className="hero">
-          <div className="hero-content">
-            <div className="hero-logo">
-              <img src="/bmv-logo-hero.png" alt="Bright Mind Vision" className="hero-logo-image" />
-            </div>
-            <h1 className="hero-title">Bright Mind Vision</h1>
-            <p className="hero-subtitle">Transform your business with intelligent AI solutions</p>
-            <p className="hero-description">We specialize in machine learning, process automation, and data analytics to drive innovation, efficiency, and growth.</p>
-            <div className="hero-actions">
-              <a href="#contact" className="cta-button primary">Get Started</a>
-              <a href="/projects" className="cta-button secondary">View Projects</a>
-            </div>
-          </div>
-        </section>
+      <HeroSection 
+        title="Bright Mind Vision"
+        subtitle="Transform your business with intelligent AI solutions"
+        description="We specialize in machine learning, process automation, and data analytics to drive innovation, efficiency, and growth."
+      >
+        <div className="hero-actions">
+          <a href="#contact" className="cta-button primary">Get Started</a>
+          <a href="/products" className="cta-button secondary">View Products</a>
+        </div>
+      </HeroSection>
 
         {/* Services Section */}
         <section id="services" className="section">
@@ -271,7 +265,6 @@ export default function Home() {
 
         <Contact />
         <Calendar />
-      </main>
 
       <Footer />
     </div>

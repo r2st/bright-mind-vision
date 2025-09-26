@@ -1,8 +1,28 @@
-import Head from 'next/head'
 import Script from 'next/script'
 import Footer from '@components/Footer'
 import Contact from '@components/Contact'
 import Calendar from '@components/Calendar'
+import HeroSection from '@components/HeroSection'
+import SEO from '@components/SEO'
+
+// CSS Styles - moved to top for proper loading
+const styles = `
+  /* Ensure proper spacing and layout */
+  .hero {
+    margin-top: 0 !important;
+    padding-top: 90px !important;
+  }
+  
+  .container {
+    padding-top: 0 !important;
+  }
+  
+  /* Override any conflicting styles */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+`
 
 export default function Projects() {
   const projects = [
@@ -100,30 +120,16 @@ export default function Projects() {
 
   return (
     <div className="container">
-      <Head>
-        <title>Projects - Bright Mind Vision</title>
-        <meta name="description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
-        <meta name="keywords" content="AI projects, machine learning projects, blockchain AI, conversational AI, e-commerce AI, smart contracts, ULALO, AI portfolio" />
-        <meta name="author" content="Bright Mind Vision" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        
-        {/* Open Graph Meta Tags */}
-        <meta property="og:title" content="Projects - Bright Mind Vision" />
-        <meta property="og:description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://brightmindvision.com/projects" />
-        <meta property="og:image" content="https://brightmindvision.com/bmv-logo.png" />
-        
-        {/* Twitter Card Meta Tags */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Projects - Bright Mind Vision" />
-        <meta name="twitter:description" content="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions." />
-        <meta name="twitter:image" content="https://brightmindvision.com/bmv-logo.png" />
-        
-        <link rel="icon" href="/bmv_favicon.png" />
-        <link rel="canonical" href="https://brightmindvision.com/projects" />
-      </Head>
+      <SEO 
+        title="Projects - Bright Mind Vision"
+        description="Explore our portfolio of AI-powered projects including e-commerce personalization, conversational AI, blockchain security, and multimodal AI solutions."
+        keywords="AI projects, machine learning projects, blockchain AI, conversational AI, e-commerce AI, smart contracts, ULALO, AI portfolio"
+        url="https://brightmindvision.com/projects"
+        image="https://brightmindvision.com/bmv-logo.png"
+      />
 
+      {/* Inline CSS for proper spacing */}
+      <style jsx>{styles}</style>
 
       {/* Calendly Script */}
       <Script
@@ -131,22 +137,16 @@ export default function Projects() {
         strategy="lazyOnload"
       />
       
-      <main>
-        {/* Hero Section */}
-        <section className="hero">
-          <div className="hero-content">
-            <div className="hero-logo">
-              <img src="/bmv-logo-hero.png" alt="Bright Mind Vision" className="hero-logo-image" />
-            </div>
-            <h1 className="hero-title">Our AI Projects</h1>
-            <p className="hero-subtitle">Explore our portfolio of cutting-edge AI solutions</p>
-            <p className="hero-description">From e-commerce personalization to blockchain security, we deliver innovative AI technologies that have transformed businesses across various industries and drive real results.</p>
-            <div className="hero-actions">
-              <a href="/#services" className="cta-button primary">Our Services</a>
-              <a href="/#contact" className="cta-button secondary">Get In Touch</a>
-            </div>
-          </div>
-        </section>
+      <HeroSection 
+        title="Our AI Projects"
+        subtitle="Explore our portfolio of cutting-edge AI solutions"
+        description="From e-commerce personalization to blockchain security, we deliver innovative AI technologies that have transformed businesses across various industries and drive real results."
+      >
+        <div className="hero-actions">
+          <a href="/#services" className="cta-button primary">Our Services</a>
+          <a href="/#contact" className="cta-button secondary">Get In Touch</a>
+        </div>
+      </HeroSection>
 
         {/* Projects Grid */}
         <section className="section">
@@ -207,7 +207,6 @@ export default function Projects() {
 
         <Contact />
         <Calendar />
-      </main>
 
       <Footer />
     </div>
