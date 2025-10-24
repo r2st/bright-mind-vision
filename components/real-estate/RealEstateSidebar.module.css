@@ -4,6 +4,7 @@
   flex: 1;
   min-height: calc(100vh - 70px);
   margin-top: 70px; /* Offset for fixed real estate header */
+  position: relative;
 }
 
 .sidebar {
@@ -12,13 +13,14 @@
   color: white;
   display: flex;
   flex-direction: column;
-  position: fixed;
-  height: calc(100vh - 70px);
-  left: 0;
+  position: sticky;
   top: 70px; /* Start below the real estate header */
-  z-index: 1000;
+  height: calc(100vh - 70px);
+  z-index: 999; /* Lower than header to scroll under it */
   transition: transform 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .sidebar.open {
@@ -181,9 +183,9 @@
 
 .mainContent {
   flex: 1;
-  margin-left: 280px;
   background: #f8fafc;
-  min-height: calc(100vh - 90px);
+  min-height: calc(100vh - 70px);
+  padding-bottom: 0;
 }
 
 .mobileOverlay {
@@ -200,8 +202,11 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .sidebar {
+    position: fixed;
     transform: translateX(-100%);
     width: 280px;
+    left: 0;
+    z-index: 1001; /* Higher than header for mobile overlay */
   }
 
   .sidebar.open {
@@ -238,6 +243,7 @@
     top: 60px; /* Adjust sidebar position for smaller mobile header */
     height: calc(100vh - 60px); /* Adjust height for smaller mobile header */
     width: 100%;
+    max-height: calc(100vh - 60px);
   }
   
   .mobileOverlay {
