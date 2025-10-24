@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Footer from './Footer';
 import RealEstateSidebar from './real-estate/RealEstateSidebar';
 import styles from './real-estate/RealEstateSidebar.module.css';
 
-const RealEstateLayout = ({ children, activeMenu, setActiveMenu }) => {
+const RealEstateLayout = ({ children, activeMenu: propActiveMenu, setActiveMenu: propSetActiveMenu }) => {
+  // Use provided props or create internal state
+  const [internalActiveMenu, setInternalActiveMenu] = useState("Dashboard");
+  
+  const activeMenu = propActiveMenu || internalActiveMenu;
+  const setActiveMenu = propSetActiveMenu || setInternalActiveMenu;
 
   return (
     <div style={{ 
