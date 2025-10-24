@@ -1,7 +1,13 @@
 export default function Contact() {
   const scrollToCalendar = (e) => {
     e.preventDefault();
-    document.getElementById('calendly-widget').scrollIntoView({ behavior: 'smooth' });
+    // Check if document is available (client-side only)
+    if (typeof document !== 'undefined') {
+      const element = document.getElementById('calendly-widget');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   };
 
   return (
