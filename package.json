@@ -9,7 +9,7 @@
     "export": "next build && next export"
   },
   "dependencies": {
-    "@netlify/plugin-nextjs": "^5.13.3",
+    "@netlify/plugin-nextjs": "^5.14.3",
     "@vapi-ai/web": "^2.3.10",
     "axios": "^1.12.2",
     "googleapis": "^160.0.0",

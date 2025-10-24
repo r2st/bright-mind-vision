@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useMenuContext } from '../HeaderWrapper'
+import { useMenuContext } from '../ClientHeaderWrapper'
 import styles from './RealEstateSidebar.module.css'
 
 const RealEstateSidebar = ({ activeMenu, setActiveMenu }) => {

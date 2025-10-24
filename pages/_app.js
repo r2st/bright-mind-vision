@@ -1,6 +1,11 @@
 import '@styles/globals.css'
-import { MenuProvider } from '@components/HeaderWrapper'
-import HeaderWrapper from '@components/HeaderWrapper'
+import { MenuProvider } from '@components/ClientHeaderWrapper'
+import dynamic from 'next/dynamic'
+
+// Dynamic import for client-side HeaderWrapper
+const HeaderWrapper = dynamic(() => import('@components/ClientHeaderWrapper'), {
+  ssr: false
+})
 
 function Application({ Component, pageProps }) {
   return (
