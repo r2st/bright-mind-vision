@@ -1,5 +1,4 @@
 import Head from 'next/head';
-import { useFavicon } from './Favicon';
 
 const SEO = ({
   title = "Bright Mind Vision - Transform your business with intelligent AI solutions",
@@ -19,8 +18,6 @@ const SEO = ({
   customMeta = [],
   structuredData = null
 }) => {
-  // Use dynamic favicon hook
-  useFavicon("#ffffff", 32, 6);
   
   // Construct full title
   const fullTitle = title.includes("Bright Mind Vision") ? title : `${title} | Bright Mind Vision`;
