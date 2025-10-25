@@ -1,8 +1,7 @@
-// Enhanced Product Data Model for RAG System
-// Comprehensive product attributes for luxury brands popular in Dubai
-// Updated with Dubai luxury products and UAE Dirham pricing
+// Dubai Luxury Products Dataset - UAE Dirham Pricing
+// Curated for the Dubai luxury market with authentic brands and pricing
 
-export const enhancedProducts = [
+export const dubaiLuxuryProducts = [
   // FASHION & ACCESSORIES
   {
     id: 'P001',
@@ -440,80 +439,43 @@ export const enhancedProducts = [
   }
 ];
 
-// Helper functions for product filtering and scoring
-export function filterProducts(products, primaryNeed, affordances) {
-  if (!products || products.length === 0) return [];
-  
-  return products.filter(product => {
-    // Filter by primary need category
-    const categoryMatch = product.category.toLowerCase().includes(primaryNeed.toLowerCase()) ||
-                         primaryNeed === 'luxury' ||
-                         primaryNeed === 'wellness_general';
-    
-    // Filter by affordances
-    const affordanceMatch = affordances.some(affordance => 
-      product.affordances?.includes(affordance) ||
-      product.tags?.includes(affordance) ||
-      product.benefits?.some(benefit => benefit.includes(affordance))
-    );
-    
-    return categoryMatch || affordanceMatch;
-  });
-}
+// Dubai-specific product categories and market insights
+export const dubaiMarketInsights = {
+  popularCategories: [
+    'Fashion',
+    'Watches', 
+    'Skincare',
+    'Fragrance',
+    'Jewelry'
+  ],
+  luxuryBrands: [
+    'Chanel',
+    'Hermès', 
+    'Louis Vuitton',
+    'Gucci',
+    'Rolex',
+    'Cartier',
+    'Bulgari',
+    'La Mer',
+    'La Prairie',
+    'Tom Ford',
+    'Creed',
+    'Diptyque',
+    'Jo Malone London'
+  ],
+  priceRanges: {
+    accessible: '100-500 AED',
+    midLuxury: '500-2000 AED', 
+    highLuxury: '2000-10000 AED',
+    ultraLuxury: '10000+ AED'
+  },
+  popularLocations: [
+    'Dubai Mall',
+    'Mall of the Emirates',
+    'City Walk',
+    'Dubai Hills Mall'
+  ]
+};
 
-export function calculateBM25Score(product, query) {
-  const queryTerms = query.toLowerCase().split(/\s+/);
-  let score = 0;
-  
-  // Score based on name match
-  const nameTerms = product.name.toLowerCase().split(/\s+/);
-  queryTerms.forEach(term => {
-    if (nameTerms.includes(term)) score += 2;
-    if (nameTerms.some(nameTerm => nameTerm.includes(term))) score += 1;
-  });
-  
-  // Score based on tags
-  if (product.tags) {
-    queryTerms.forEach(term => {
-      if (product.tags.includes(term)) score += 1.5;
-    });
-  }
-  
-  // Score based on benefits
-  if (product.benefits) {
-    queryTerms.forEach(term => {
-      product.benefits.forEach(benefit => {
-        if (benefit.toLowerCase().includes(term)) score += 1;
-      });
-    });
-  }
-  
-  return score;
-}
-
-export function calculateBusinessScore(product) {
-  let score = 0;
-  
-  // Rating score
-  if (product.rating) {
-    score += product.rating * 2; // 0-10 points
-  }
-  
-  // Stock availability
-  if (product.stock > 0) {
-    score += 1;
-  }
-  
-  // Luxury brand bonus
-  const luxuryBrands = ['chanel', 'hermes', 'louis vuitton', 'gucci', 'rolex', 'cartier', 'bulgari', 'la mer', 'la prairie'];
-  if (luxuryBrands.some(brand => product.brand?.toLowerCase().includes(brand))) {
-    score += 2;
-  }
-  
-  // Price tier (higher price = more luxury)
-  if (product.price > 10000) score += 3;
-  else if (product.price > 5000) score += 2;
-  else if (product.price > 1000) score += 1;
-  
-  return score;
-}
+// Export the main products array as default
+export default dubaiLuxuryProducts;

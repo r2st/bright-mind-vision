@@ -8,6 +8,19 @@
 
 # Test files are excluded via .gitignore
 
+# Scheduled functions for automatic token renewal
+[functions]
+  directory = "netlify/functions"
+
+# Scheduled triggers
+[[plugins]]
+  package = "@netlify/plugin-scheduled-functions"
+
+[plugins.inputs]
+  # Run token renewal every 12 hours
+  schedule = "0 */12 * * *"
+  function = "renew-token"
+
 # Security headers to improve trust and avoid false positives
 [[headers]]
   for = "/*"

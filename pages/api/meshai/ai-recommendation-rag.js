@@ -1,5 +1,5 @@
 // Enhanced RAG-based AI Product Recommendation Service using Groq with Natural Language Generation
-import recommendProducts from '../../../services/groqRAGService.js';
+import { getGroqRecommendationsWithNaturalResponse } from '../../../services/enhancedGroqRAGService.js';
 
 export default async function handler(req, res) {
   console.log('🔍 RAG AI Recommendation API called with method:', req.method);
@@ -19,11 +19,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    console.log('🔍 Generating RAG recommendations for message:', message);
+    console.log('🔍 Generating enhanced RAG recommendations with natural language for message:', message);
     
-    // Use Groq RAG system for recommendations
-    const result = await recommendProducts(message);
-    console.log('🔍 Generated RAG recommendations:', JSON.stringify(result, null, 2));
+    // Use enhanced Groq RAG system with natural language generation
+    const result = await getGroqRecommendationsWithNaturalResponse(message, customerId, context);
+    console.log('🔍 Generated enhanced RAG recommendations:', JSON.stringify(result, null, 2));
 
     if (!result.success) {
       return res.status(400).json({
@@ -37,6 +37,7 @@ export default async function handler(req, res) {
       success: true,
       message: result.message,
       recommendations: result.recommendations,
+      naturalResponse: result.naturalResponse,
       metadata: result.metadata,
       timestamp: new Date().toISOString()
     };

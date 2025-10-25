@@ -23,7 +23,14 @@ export async function normalizeIntent(userQuery) {
         {
           role: 'system',
           content: `You are an intent classifier for a luxury product recommendation system. 
-          Analyze the user query and return a JSON object with:
+          
+          FIRST: Check if this is a greeting or casual interaction:
+          - If the message is just "hi", "hello", "hey", "good morning", etc. → return {"type": "greeting", "primaryNeed": "greeting", "confidence": 0.9}
+          - If the message is asking for help like "help", "what can you do", "how does this work" → return {"type": "help", "primaryNeed": "help", "confidence": 0.9}
+          - If the message is a product request, continue with normal classification
+          
+          For product requests, return a JSON object with:
+          - type: "product_request"
           - primaryNeed: the main need category (relaxation_and_stress_relief, sleep_support, organic, wellness_general, luxury, beauty_skincare, fragrance, home_decor, jewelry_watches, fashion_accessories)
           - constraints: array of constraints (budget_conscious, organic_only, luxury_only, specific_category, etc.)
           - affordances: array of relevant affordances from the query
@@ -85,7 +92,7 @@ export function retrieveProducts(intent, userQuery) {
   }
   
   // Filter products
-  let candidates = filterProducts(filters);
+  let candidates = filterProducts(enhancedProducts, primaryNeed, affordances);
   
   // Calculate scores
   const scoredCandidates = candidates.map(product => {
@@ -240,6 +247,56 @@ export async function getGroqRecommendationsWithNaturalResponse(userQuery, custo
     // Step 1: Intent Normalization
     const intent = await normalizeIntent(userQuery);
     console.log('📝 Intent normalized:', intent);
+    
+    // Handle greetings and help requests
+    if (intent.type === 'greeting') {
+      return {
+        success: true,
+        message: 'Greeting detected',
+        recommendations: [],
+        naturalResponse: {
+          opening: "Hello! 👋 Welcome to our luxury shopping experience. I'm here to help you find the perfect products.",
+          items: [],
+          cta: "What would you like to shop for today?",
+          quick_replies: [
+            "Luxury bags",
+            "Skincare products", 
+            "Wellness items",
+            "Show me everything"
+          ]
+        },
+        metadata: {
+          intent,
+          type: 'greeting',
+          timestamp: new Date().toISOString()
+        }
+      };
+    }
+    
+    if (intent.type === 'help') {
+      return {
+        success: true,
+        message: 'Help request detected',
+        recommendations: [],
+        naturalResponse: {
+          opening: "I'm your personal shopping assistant! 🛍️ I can help you find luxury products across categories like fashion, skincare, wellness, and more.",
+          items: [],
+          cta: "What type of products are you looking for?",
+          quick_replies: [
+            "Luxury fashion",
+            "Premium skincare",
+            "Wellness products",
+            "Home decor",
+            "Tell me more"
+          ]
+        },
+        metadata: {
+          intent,
+          type: 'help',
+          timestamp: new Date().toISOString()
+        }
+      };
+    }
     
     // Step 2: Product Retrieval
     const candidates = retrieveProducts(intent, userQuery);
