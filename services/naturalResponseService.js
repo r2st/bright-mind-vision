@@ -234,7 +234,7 @@ export function formatForWhatsApp(naturalResponse, picks) {
     const price = pick?.product?.price || pick?.price || 0;
     const emoji = pick?.product?.image || pick?.image || '🛍️';
     
-    message += `${index + 1}. ${emoji} *${item.headline}* - $${price}\n`;
+    message += `${index + 1}. ${emoji} *${item.headline}* - ${price} AED\n`;
     message += `   ${item.one_liner}\n\n`;
   });
   

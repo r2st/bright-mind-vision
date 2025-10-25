@@ -164,10 +164,10 @@ async function handleIncomingMessage(message, contact) {
     await storeMessage(messageData);
 
     // Check if this is a quick reply response (numbered response)
-    const quickReplyResponse = handleQuickReply(messageData.message);
-    if (quickReplyResponse) {
-      console.log('🔢 Quick reply detected:', quickReplyResponse);
-      await sendWhatsAppMessage(messageData.from, quickReplyResponse);
+    const quickReplyAction = handleQuickReply(messageData.message);
+    if (quickReplyAction) {
+      console.log('🔢 Quick reply detected:', quickReplyAction);
+      await handleQuickReplyAction(quickReplyAction, messageData.from);
       await markMessageAsProcessed(messageData.id);
       return;
     }
@@ -189,36 +189,109 @@ function handleQuickReply(message) {
   if (/^[1-9]$/.test(trimmedMessage)) {
     const number = parseInt(trimmedMessage);
     
-    // Map quick reply numbers to responses
-    const quickReplyMap = {
-      1: "Great choice! Let me show you more options in that category.",
-      2: "Excellent! I'll help you explore that area in more detail.",
-      3: "Perfect! Let me find the best options for you.",
-      4: "Wonderful! I'll show you our top recommendations.",
-      5: "Fantastic! Let me help you discover more products."
+    // Map quick reply numbers to specific actions
+    const quickReplyActions = {
+      1: "fashion", // View all Fashion items
+      2: "brands",  // Filter by brand
+      3: "price"    // Shop by price
     };
     
-    return quickReplyMap[number] || "Thanks for your selection! Let me help you with that.";
+    return quickReplyActions[number] || null;
   }
   
   // Check for common quick reply phrases
   const quickReplyPhrases = {
-    'view all fashion': "Here are our top fashion products! Let me show you the best luxury items.",
-    'explore handbags': "Perfect! Let me show you our premium handbag collection.",
-    'discover luxury brands': "Excellent! I'll introduce you to our luxury brand partners.",
-    'more options': "Great! Let me show you more options in that category.",
-    'fashion collection': "Here's our complete fashion collection for you to explore.",
-    'back to home': "Welcome back! How can I help you find the perfect products today?"
+    'view all fashion': "fashion",
+    'explore handbags': "handbags",
+    'discover luxury brands': "brands",
+    'more options': "more",
+    'fashion collection': "fashion",
+    'back to home': "home"
   };
   
   const lowerMessage = trimmedMessage.toLowerCase();
-  for (const [phrase, response] of Object.entries(quickReplyPhrases)) {
+  for (const [phrase, action] of Object.entries(quickReplyPhrases)) {
     if (lowerMessage.includes(phrase)) {
-      return response;
+      return action;
     }
   }
   
   return null; // Not a quick reply
+}
+
+// Handle quick reply actions with specific responses
+async function handleQuickReplyAction(action, from) {
+  try {
+    console.log('🎯 Handling quick reply action:', action);
+    
+    // Call the RAG API with the specific action
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const response = await fetch(`${baseUrl}/api/meshai/ai-recommendation-rag`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: getActionMessage(action),
+        customerId: `whatsapp-${from}`,
+        context: {
+          source: 'whatsapp',
+          quickReplyAction: action,
+          timestamp: new Date().toISOString()
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Quick reply API error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('🎯 Quick reply result:', JSON.stringify(result, null, 2));
+    
+    if (result.success && result.naturalResponse) {
+      // Format and send the natural response
+      const naturalMessage = formatNaturalResponseForWhatsApp(result);
+      await sendWhatsAppMessage(from, naturalMessage);
+    } else {
+      // Fallback response
+      const fallbackMessage = getFallbackMessage(action);
+      await sendWhatsAppMessage(from, fallbackMessage);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error handling quick reply action:', error);
+    const errorMessage = "I'm having trouble processing your request right now. Please try again in a moment.";
+    await sendWhatsAppMessage(from, errorMessage);
+  }
+}
+
+// Get action-specific message for RAG
+function getActionMessage(action) {
+  const actionMessages = {
+    'fashion': 'Show me all fashion products including bags, accessories, and luxury items',
+    'brands': 'Show me products from luxury brands like Chanel, Hermès, Gucci, Louis Vuitton, Rolex, and La Mer',
+    'price': 'Show me luxury products at different price ranges',
+    'handbags': 'Show me luxury handbags and bags from top brands',
+    'more': 'Show me more luxury products in different categories',
+    'home': 'Welcome! Show me your luxury product collection'
+  };
+  
+  return actionMessages[action] || 'Show me luxury products';
+}
+
+// Get fallback message for quick reply actions
+function getFallbackMessage(action) {
+  const fallbackMessages = {
+    'fashion': "Here are our top fashion products! Let me show you the best luxury items from our collection.",
+    'brands': "Perfect! Let me show you products from our luxury brand partners like Chanel, Hermès, Gucci, and more.",
+    'price': "Great! Let me show you luxury products at different price points to fit your budget.",
+    'handbags': "Excellent! Here's our premium handbag collection from top luxury brands.",
+    'more': "Wonderful! Let me show you more options from our luxury collection.",
+    'home': "Welcome back! How can I help you find the perfect luxury products today?"
+  };
+  
+  return fallbackMessages[action] || "Thanks for your selection! Let me help you with that.";
 }
 
 // Generate contextual response based on message content
@@ -406,7 +479,7 @@ function formatNaturalResponseForWhatsApp(result) {
     const price = rec?.product?.price || rec?.price || 0;
     const emoji = rec?.product?.image || rec?.image || '🛍️';
     
-    message += `${index + 1}. ${emoji} *${item.headline}* - $${price}\n`;
+    message += `${index + 1}. ${emoji} *${item.headline}* - ${price} AED\n`;
     message += `   ${item.one_liner}\n\n`;
   });
   
@@ -430,7 +503,7 @@ function formatRecommendationMessage(recommendations, metadata) {
 
   recommendations.slice(0, 3).forEach((rec, index) => {
     if (rec.product) {
-      message += `${index + 1}. *${rec.product.name}* - $${rec.product.price}\n`;
+      message += `${index + 1}. *${rec.product.name}* - ${rec.product.price} AED\n`;
       message += `   ${rec.reason || 'Great product for you'}\n`;
       message += `   Confidence: ${(rec.confidence * 100).toFixed(0)}%\n`;
       message += `   Category: ${rec.product.category}\n\n`;

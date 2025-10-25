@@ -84,18 +84,56 @@ export const NEED_AFFORDANCES = {
 export function classifyIntent(userQuery) {
   const query = userQuery.toLowerCase();
   
-  // Check for specific needs
+  // Check for specific needs and find the best match
+  let bestMatch = null;
+  let bestScore = 0;
+  
   for (const [need, affordances] of Object.entries(NEED_AFFORDANCES)) {
     const matches = affordances.filter(affordance => 
       query.includes(affordance.toLowerCase())
     );
+    
     if (matches.length > 0) {
-      return {
-        primaryNeed: need,
-        matchedAffordances: matches,
-        confidence: matches.length / affordances.length
-      };
+      const score = matches.length / affordances.length;
+      if (score > bestScore) {
+        bestMatch = {
+          primaryNeed: need,
+          matchedAffordances: matches,
+          confidence: score
+        };
+        bestScore = score;
+      }
     }
+  }
+  
+  // If we found a match, return it
+  if (bestMatch) {
+    return bestMatch;
+  }
+  
+  // Special handling for common product categories
+  if (query.includes('watch') || query.includes('timepiece')) {
+    return {
+      primaryNeed: 'jewelry_watches',
+      matchedAffordances: ['watch', 'timepiece'],
+      confidence: 0.8
+    };
+  }
+  
+  if (query.includes('bag') || query.includes('handbag') || query.includes('purse')) {
+    return {
+      primaryNeed: 'fashion_accessories',
+      matchedAffordances: ['handbag', 'bag'],
+      confidence: 0.8
+    };
+  }
+  
+  if (query.includes('luxury') || query.includes('premium')) {
+    return {
+      primaryNeed: 'luxury',
+      matchedAffordances: ['luxury', 'premium'],
+      confidence: 0.7
+    };
   }
   
   // Default to general wellness

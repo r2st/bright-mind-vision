@@ -24,9 +24,11 @@ export async function normalizeIntent(userQuery) {
           role: 'system',
           content: `You are an intent classifier for a luxury product recommendation system. 
           
-          FIRST: Check if this is a greeting or casual interaction:
+          FIRST: Check if this is a quick reply number or specific interaction:
+          - If the message is just a single number like "1", "2", "3", etc. → return {"type": "quick_reply", "primaryNeed": "quick_reply", "number": 1, "confidence": 0.9}
           - If the message is just "hi", "hello", "hey", "good morning", etc. → return {"type": "greeting", "primaryNeed": "greeting", "confidence": 0.9}
           - If the message is asking for help like "help", "what can you do", "how does this work" → return {"type": "help", "primaryNeed": "help", "confidence": 0.9}
+          - If the message contains "luxury" + product category (watches, bags, etc.), prioritize the product category
           - If the message is a product request, continue with normal classification
           
           For product requests, return a JSON object with:
@@ -49,8 +51,10 @@ export async function normalizeIntent(userQuery) {
     
     // Fallback to rule-based classification if LLM fails
     if (!result.primaryNeed) {
+      console.log('🔄 LLM intent detection failed, using rule-based fallback');
       const ruleBased = classifyIntent(userQuery);
       return {
+        type: 'product_request',
         primaryNeed: ruleBased.primaryNeed,
         constraints: [],
         affordances: ruleBased.matchedAffordances,
@@ -61,9 +65,11 @@ export async function normalizeIntent(userQuery) {
     return result;
   } catch (error) {
     console.error('Intent normalization failed:', error);
+    console.log('🔄 Using rule-based fallback due to error');
     // Fallback to rule-based classification
     const ruleBased = classifyIntent(userQuery);
     return {
+      type: 'product_request',
       primaryNeed: ruleBased.primaryNeed,
       constraints: [],
       affordances: ruleBased.matchedAffordances,
@@ -248,7 +254,30 @@ export async function getGroqRecommendationsWithNaturalResponse(userQuery, custo
     const intent = await normalizeIntent(userQuery);
     console.log('📝 Intent normalized:', intent);
     
-    // Handle greetings and help requests
+    // Handle quick replies, greetings and help requests
+    if (intent.type === 'quick_reply') {
+      const quickReplyActions = {
+        1: 'fashion',
+        2: 'brands', 
+        3: 'price'
+      };
+      
+      const action = quickReplyActions[intent.number] || 'general';
+      const actionMessages = {
+        'fashion': 'Show me all fashion products including bags, accessories, and luxury items',
+        'brands': 'Show me products from luxury brands like Chanel, Hermès, Gucci, Louis Vuitton, Rolex, and La Mer',
+        'price': 'Show me luxury products at different price ranges',
+        'general': 'Show me luxury products'
+      };
+      
+      // Process the quick reply as a new product request
+      const quickReplyQuery = actionMessages[action];
+      console.log('🔢 Processing quick reply:', action, '→', quickReplyQuery);
+      
+      // Recursively call the function with the action message
+      return await getGroqRecommendationsWithNaturalResponse(quickReplyQuery, customerId, context);
+    }
+    
     if (intent.type === 'greeting') {
       return {
         success: true,
