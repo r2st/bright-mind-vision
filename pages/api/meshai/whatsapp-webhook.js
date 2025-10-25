@@ -163,6 +163,15 @@ async function handleIncomingMessage(message, contact) {
     // Store message in database (implement your preferred storage solution)
     await storeMessage(messageData);
 
+    // Check if this is a quick reply response (numbered response)
+    const quickReplyResponse = handleQuickReply(messageData.message);
+    if (quickReplyResponse) {
+      console.log('🔢 Quick reply detected:', quickReplyResponse);
+      await sendWhatsAppMessage(messageData.from, quickReplyResponse);
+      await markMessageAsProcessed(messageData.id);
+      return;
+    }
+
     // Trigger AI product recommendation
     await triggerAIRecommendation(messageData);
 
@@ -170,6 +179,91 @@ async function handleIncomingMessage(message, contact) {
   } catch (error) {
     console.error('❌ Error handling incoming message:', error);
   }
+}
+
+// Handle quick reply responses (numbered responses)
+function handleQuickReply(message) {
+  const trimmedMessage = message.trim();
+  
+  // Check for numbered responses (1, 2, 3, etc.)
+  if (/^[1-9]$/.test(trimmedMessage)) {
+    const number = parseInt(trimmedMessage);
+    
+    // Map quick reply numbers to responses
+    const quickReplyMap = {
+      1: "Great choice! Let me show you more options in that category.",
+      2: "Excellent! I'll help you explore that area in more detail.",
+      3: "Perfect! Let me find the best options for you.",
+      4: "Wonderful! I'll show you our top recommendations.",
+      5: "Fantastic! Let me help you discover more products."
+    };
+    
+    return quickReplyMap[number] || "Thanks for your selection! Let me help you with that.";
+  }
+  
+  // Check for common quick reply phrases
+  const quickReplyPhrases = {
+    'view all fashion': "Here are our top fashion products! Let me show you the best luxury items.",
+    'explore handbags': "Perfect! Let me show you our premium handbag collection.",
+    'discover luxury brands': "Excellent! I'll introduce you to our luxury brand partners.",
+    'more options': "Great! Let me show you more options in that category.",
+    'fashion collection': "Here's our complete fashion collection for you to explore.",
+    'back to home': "Welcome back! How can I help you find the perfect products today?"
+  };
+  
+  const lowerMessage = trimmedMessage.toLowerCase();
+  for (const [phrase, response] of Object.entries(quickReplyPhrases)) {
+    if (lowerMessage.includes(phrase)) {
+      return response;
+    }
+  }
+  
+  return null; // Not a quick reply
+}
+
+// Generate contextual response based on message content
+function generateContextualResponse(message) {
+  const lowerMessage = message.toLowerCase();
+  
+  // Greeting responses
+  if (lowerMessage.includes('hi') || lowerMessage.includes('hello') || lowerMessage.includes('hey')) {
+    return "Hello! 👋 Welcome to our luxury shopping experience. I'm here to help you find the perfect products. What would you like to explore today?";
+  }
+  
+  // Help requests
+  if (lowerMessage.includes('help') || lowerMessage.includes('what can you do')) {
+    return "I'm your personal shopping assistant! 🛍️ I can help you find luxury products across categories like fashion, skincare, wellness, and more. What type of products are you looking for?";
+  }
+  
+  // Product category requests
+  if (lowerMessage.includes('bag') || lowerMessage.includes('handbag') || lowerMessage.includes('purse')) {
+    return "Great choice! I have an amazing collection of luxury handbags from top brands like Chanel, Hermès, Gucci, and Louis Vuitton. What style are you looking for?";
+  }
+  
+  if (lowerMessage.includes('watch') || lowerMessage.includes('timepiece')) {
+    return "Excellent! I can show you luxury watches from Rolex, Cartier, Bulgari, and other premium brands. Are you looking for something classic or modern?";
+  }
+  
+  if (lowerMessage.includes('skincare') || lowerMessage.includes('beauty') || lowerMessage.includes('cream')) {
+    return "Perfect! I have premium skincare products from La Mer, La Prairie, and other luxury brands. What's your main skincare concern?";
+  }
+  
+  if (lowerMessage.includes('fragrance') || lowerMessage.includes('perfume') || lowerMessage.includes('cologne')) {
+    return "Wonderful! I can help you find luxury fragrances from Tom Ford, Chanel, Dior, and other exclusive brands. What type of scent do you prefer?";
+  }
+  
+  // General product requests
+  if (lowerMessage.includes('luxury') || lowerMessage.includes('premium') || lowerMessage.includes('high-end')) {
+    return "I love that you're looking for luxury items! I have an exclusive collection of premium products. What specific category interests you most?";
+  }
+  
+  // Budget-related
+  if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('expensive')) {
+    return "I understand you're thinking about budget. I have luxury products at various price points. What's your preferred price range?";
+  }
+  
+  // Default contextual response
+  return "I'd love to help you find the perfect products! Could you tell me more about what you're looking for? I have luxury items in fashion, skincare, wellness, and more.";
 }
 
 // Store message in database
@@ -229,8 +323,9 @@ async function triggerAIRecommendation(messageData) {
       // Send natural recommendation back to customer via WhatsApp
       await sendWhatsAppMessage(messageData.from, naturalMessage);
     } else {
-      // Send a helpful response even if no specific recommendations
-      await sendWhatsAppMessage(messageData.from, "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?");
+      // Send a context-aware response based on the message content
+      const contextResponse = generateContextualResponse(messageData.message);
+      await sendWhatsAppMessage(messageData.from, contextResponse);
     }
 
     // Mark message as AI processed
