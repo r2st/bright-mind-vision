@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import SEO from '../../../components/SEO';
-import MeshaiLayout from '../../../components/MeshaiLayout';
+import SEO from '../../components/SEO';
+import MeshaiLayout from '../../components/MeshaiLayout';
+import { dummyProducts } from '../../data/dummyProducts';
 
 export default function MeshaiDashboard() {
   const [activeMenu, setActiveMenu] = useState("Dashboard");
@@ -9,135 +10,58 @@ export default function MeshaiDashboard() {
   const [aiRecommendations, setAiRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Dummy product data
-  const dummyProducts = [
-    {
-      id: 'P001',
-      name: 'Organic Green Tea',
-      category: 'Beverages',
-      price: 12.99,
-      stock: 150,
-      description: 'Premium organic green tea with antioxidant properties',
-      image: '🍵',
-      tags: ['organic', 'healthy', 'antioxidant', 'natural'],
-      rating: 4.8,
-      reviews: 234,
-      supplier: 'Green Valley Farms',
-      sku: 'GVF-GT-001'
-    },
-    {
-      id: 'P002',
-      name: 'Himalayan Salt Lamp',
-      category: 'Wellness',
-      price: 29.99,
-      stock: 45,
-      description: 'Natural Himalayan salt lamp for air purification and mood enhancement',
-      image: '🕯️',
-      tags: ['wellness', 'air-purification', 'mood', 'natural'],
-      rating: 4.6,
-      reviews: 189,
-      supplier: 'Himalayan Wellness Co.',
-      sku: 'HWC-SL-002'
-    },
-    {
-      id: 'P003',
-      name: 'Essential Oil Diffuser',
-      category: 'Aromatherapy',
-      price: 45.99,
-      stock: 78,
-      description: 'Ultrasonic essential oil diffuser with LED lights and timer',
-      image: '💨',
-      tags: ['aromatherapy', 'relaxation', 'LED', 'timer'],
-      rating: 4.7,
-      reviews: 312,
-      supplier: 'AromaTech Solutions',
-      sku: 'ATS-ED-003'
-    },
-    {
-      id: 'P004',
-      name: 'Yoga Mat Premium',
-      category: 'Fitness',
-      price: 39.99,
-      stock: 92,
-      description: 'Non-slip premium yoga mat with carrying strap',
-      image: '🧘',
-      tags: ['fitness', 'yoga', 'non-slip', 'premium'],
-      rating: 4.9,
-      reviews: 456,
-      supplier: 'FitLife Products',
-      sku: 'FLP-YM-004'
-    },
-    {
-      id: 'P005',
-      name: 'Meditation Cushion',
-      category: 'Wellness',
-      price: 24.99,
-      stock: 67,
-      description: 'Comfortable meditation cushion filled with buckwheat hulls',
-      image: '🪑',
-      tags: ['meditation', 'comfort', 'buckwheat', 'wellness'],
-      rating: 4.5,
-      reviews: 178,
-      supplier: 'Zen Living Co.',
-      sku: 'ZLC-MC-005'
-    },
-    {
-      id: 'P006',
-      name: 'Herbal Sleep Tea',
-      category: 'Beverages',
-      price: 15.99,
-      stock: 123,
-      description: 'Blend of chamomile, lavender, and valerian for better sleep',
-      image: '🌙',
-      tags: ['sleep', 'herbal', 'chamomile', 'lavender'],
-      rating: 4.4,
-      reviews: 267,
-      supplier: 'SleepWell Teas',
-      sku: 'SWT-ST-006'
-    }
-  ];
 
   // Dummy WhatsApp messages
   const dummyMessages = [
     {
       id: 'M001',
-      from: '+1234567890',
-      name: 'Sarah Johnson',
-      message: 'Hi! I\'m looking for something to help me relax after work. Any recommendations?',
+      from: '+971501234567',
+      name: 'Aisha Al-Rashid',
+      message: 'Hi! I\'m looking for a luxury handbag for a special occasion. Something elegant and timeless.',
       timestamp: '2024-01-21T14:30:00Z',
       status: 'unread',
       aiProcessed: true,
-      recommendedProducts: ['P002', 'P003', 'P005']
+      recommendedProducts: ['P001', 'P003']
     },
     {
       id: 'M002',
-      from: '+1987654321',
-      name: 'Mike Chen',
-      message: 'Do you have any organic teas? I prefer something healthy and natural.',
+      from: '+971507654321',
+      name: 'Ahmed Hassan',
+      message: 'I need a luxury watch for my collection. Something with good investment value.',
       timestamp: '2024-01-21T13:15:00Z',
       status: 'read',
       aiProcessed: true,
-      recommendedProducts: ['P001', 'P006']
+      recommendedProducts: ['P002', 'P004', 'P012']
     },
     {
       id: 'M003',
-      from: '+1122334455',
-      name: 'Emily Rodriguez',
-      message: 'I need a yoga mat for my home practice. What do you recommend?',
+      from: '+971501112233',
+      name: 'Fatima Al-Zahra',
+      message: 'Looking for premium skincare products. Something for anti-aging and luxury feel.',
       timestamp: '2024-01-21T11:45:00Z',
       status: 'read',
       aiProcessed: true,
-      recommendedProducts: ['P004']
+      recommendedProducts: ['P006', 'P020']
     },
     {
       id: 'M004',
-      from: '+1555666777',
-      name: 'David Thompson',
-      message: 'Looking for aromatherapy products for my office space.',
+      from: '+971505556667',
+      name: 'Omar Al-Mansouri',
+      message: 'I want to buy a luxury fragrance. Something masculine and sophisticated.',
       timestamp: '2024-01-21T10:20:00Z',
       status: 'unread',
       aiProcessed: true,
-      recommendedProducts: ['P003', 'P002']
+      recommendedProducts: ['P007', 'P005']
+    },
+    {
+      id: 'M005',
+      from: '+971508889990',
+      name: 'Layla Al-Din',
+      message: 'Looking for luxury home decor items. Something to enhance my living room.',
+      timestamp: '2024-01-21T09:15:00Z',
+      status: 'read',
+      aiProcessed: true,
+      recommendedProducts: ['P008', 'P009', 'P010']
     }
   ];
 
@@ -146,23 +70,18 @@ export default function MeshaiDashboard() {
     {
       id: 'R001',
       messageId: 'M001',
-      customerName: 'Sarah Johnson',
-      originalMessage: 'Hi! I\'m looking for something to help me relax after work. Any recommendations?',
+      customerName: 'Aisha Al-Rashid',
+      originalMessage: 'Hi! I\'m looking for a luxury handbag for a special occasion. Something elegant and timeless.',
       recommendedProducts: [
         {
-          productId: 'P002',
-          confidence: 0.92,
-          reason: 'Himalayan salt lamp provides natural relaxation and mood enhancement'
+          productId: 'P001',
+          confidence: 0.95,
+          reason: 'Chanel Classic Flap Bag is the epitome of elegance and timeless luxury'
         },
         {
           productId: 'P003',
-          confidence: 0.88,
-          reason: 'Essential oil diffuser with aromatherapy for stress relief'
-        },
-        {
-          productId: 'P005',
-          confidence: 0.85,
-          reason: 'Meditation cushion for mindfulness and relaxation practices'
+          confidence: 0.92,
+          reason: 'Hermès Birkin 30 is the ultimate luxury handbag with exceptional investment value'
         }
       ],
       timestamp: '2024-01-21T14:31:00Z',
@@ -171,21 +90,46 @@ export default function MeshaiDashboard() {
     {
       id: 'R002',
       messageId: 'M002',
-      customerName: 'Mike Chen',
-      originalMessage: 'Do you have any organic teas? I prefer something healthy and natural.',
+      customerName: 'Ahmed Hassan',
+      originalMessage: 'I need a luxury watch for my collection. Something with good investment value.',
       recommendedProducts: [
         {
-          productId: 'P001',
-          confidence: 0.95,
-          reason: 'Organic green tea matches preference for healthy and natural products'
+          productId: 'P002',
+          confidence: 0.98,
+          reason: 'Rolex Submariner is the ultimate investment watch with excellent resale value'
         },
         {
-          productId: 'P006',
-          confidence: 0.78,
-          reason: 'Herbal sleep tea is also organic and natural'
+          productId: 'P004',
+          confidence: 0.89,
+          reason: 'Cartier Santos combines elegance with strong investment potential'
+        },
+        {
+          productId: 'P012',
+          confidence: 0.85,
+          reason: 'Bulgari Serpenti offers unique design with luxury appeal'
         }
       ],
       timestamp: '2024-01-21T13:16:00Z',
+      status: 'active'
+    },
+    {
+      id: 'R003',
+      messageId: 'M003',
+      customerName: 'Fatima Al-Zahra',
+      originalMessage: 'Looking for premium skincare products. Something for anti-aging and luxury feel.',
+      recommendedProducts: [
+        {
+          productId: 'P006',
+          confidence: 0.94,
+          reason: 'La Mer The Concentrate is the ultimate luxury anti-aging serum'
+        },
+        {
+          productId: 'P020',
+          confidence: 0.91,
+          reason: 'La Prairie Cellular Cream provides advanced anti-aging technology'
+        }
+      ],
+      timestamp: '2024-01-21T11:46:00Z',
       status: 'active'
     }
   ];

@@ -182,14 +182,14 @@ async function storeMessage(messageData) {
   // In production, save to your database
 }
 
-// Trigger AI product recommendation
+// Trigger AI product recommendation with natural response
 async function triggerAIRecommendation(messageData) {
   try {
     console.log('🤖 Triggering AI recommendation for message:', messageData.message);
     
-    // Call the existing AI recommendation API
+    // Call the enhanced RAG-based AI recommendation API
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/meshai/ai-recommendation`, {
+    const response = await fetch(`${baseUrl}/api/meshai/ai-recommendation-rag`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -212,19 +212,22 @@ async function triggerAIRecommendation(messageData) {
     const result = await response.json();
     console.log('🤖 AI recommendation result:', JSON.stringify(result, null, 2));
     
-    if (result.success && result.recommendations && result.recommendations.products.length > 0) {
+    if (result.success && result.recommendations && result.recommendations.length > 0) {
       // Store recommendation
       await storeRecommendation({
         messageId: messageData.id,
         customerName: messageData.name,
         originalMessage: messageData.message,
-        recommendedProducts: result.recommendations.products,
+        recommendedProducts: result.recommendations,
         timestamp: new Date().toISOString(),
         status: 'active'
       });
 
-      // Send recommendation back to customer via WhatsApp
-      await sendWhatsAppMessage(messageData.from, formatRecommendationMessage(result.recommendations));
+      // Format natural response for WhatsApp
+      const naturalMessage = formatNaturalResponseForWhatsApp(result);
+      
+      // Send natural recommendation back to customer via WhatsApp
+      await sendWhatsAppMessage(messageData.from, naturalMessage);
     } else {
       // Send a helpful response even if no specific recommendations
       await sendWhatsAppMessage(messageData.from, "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?");
@@ -292,25 +295,58 @@ async function sendWhatsAppMessage(to, message) {
   }
 }
 
-// Format recommendation message for WhatsApp
-function formatRecommendationMessage(recommendation) {
-  if (!recommendation.products || recommendation.products.length === 0) {
+// Format natural response for WhatsApp
+function formatNaturalResponseForWhatsApp(result) {
+  if (!result.naturalResponse) {
+    return formatRecommendationMessage(result.recommendations, result.metadata);
+  }
+
+  const { naturalResponse, recommendations } = result;
+  
+  let message = `🤖 *AI Product Recommendations*\n\n`;
+  message += `${naturalResponse.opening}\n\n`;
+  
+  naturalResponse.items.forEach((item, index) => {
+    const rec = recommendations.find(r => (r.productId || r.id) === item.id);
+    const price = rec?.product?.price || rec?.price || 0;
+    const emoji = rec?.product?.image || rec?.image || '🛍️';
+    
+    message += `${index + 1}. ${emoji} *${item.headline}* - $${price}\n`;
+    message += `   ${item.one_liner}\n\n`;
+  });
+  
+  message += `💬 ${naturalResponse.cta}\n\n`;
+  message += `Quick replies:\n`;
+  naturalResponse.quick_replies.forEach((reply, index) => {
+    message += `${index + 1}. ${reply}\n`;
+  });
+  
+  return message;
+}
+
+// Format recommendation message for WhatsApp (fallback)
+function formatRecommendationMessage(recommendations, metadata) {
+  if (!recommendations || recommendations.length === 0) {
     return "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?";
   }
 
   let message = "🤖 *AI Product Recommendations*\n\n";
   message += "Based on your message, here are my top recommendations:\n\n";
 
-  recommendation.products.slice(0, 3).forEach((rec, index) => {
-    const product = getProductById(rec.productId);
-    if (product) {
-      message += `${index + 1}. *${product.name}* - $${product.price}\n`;
-      message += `   ${rec.primaryReason || rec.reasons?.[0] || 'Great product for you'}\n`;
-      message += `   Confidence: ${(rec.confidence * 100).toFixed(0)}%\n\n`;
+  recommendations.slice(0, 3).forEach((rec, index) => {
+    if (rec.product) {
+      message += `${index + 1}. *${rec.product.name}* - $${rec.product.price}\n`;
+      message += `   ${rec.reason || 'Great product for you'}\n`;
+      message += `   Confidence: ${(rec.confidence * 100).toFixed(0)}%\n`;
+      message += `   Category: ${rec.product.category}\n\n`;
     }
   });
 
-  message += "Would you like more information about any of these products?";
+  if (metadata && metadata.overallConfidence) {
+    message += `Overall confidence: ${(metadata.overallConfidence * 100).toFixed(0)}%\n`;
+  }
+
+  message += "\nWould you like more information about any of these products?";
   
   return message;
 }
