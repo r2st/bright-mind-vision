@@ -6,13 +6,7 @@
   NODE_ENV = "production"
   NEXT_TELEMETRY_DISABLED = "1"
 
-# Secrets scanning configuration
-[build.processing]
-  skip_processing = false
-
-# Omit test files from secrets scanning
-[build.processing.skip_processing]
-  paths = ["test-*.js", "quick-test.js", "test-webhook-*.js", "test-production-*.js", "test-natural-*.js", "test-verified-*.js", "test-mobile-*.js", "test-whatsapp-*.js"]
+# Test files are excluded via .gitignore
 
 # Security headers to improve trust and avoid false positives
 [[headers]]
