@@ -35,3 +35,13 @@ docs
 tools
 calendar-test
 certificates
+
+# Test files with secrets
+test-*.js
+quick-test.js
+test-webhook-*.js
+test-production-*.js
+test-natural-*.js
+test-verified-*.js
+test-mobile-*.js
+test-whatsapp-*.js
