@@ -1,5 +1,5 @@
 // Simple RAG-based AI Product Recommendation Service (fallback)
-import { getGroqRecommendations } from '../../../services/groqRAGService.js';
+import recommendProducts from '../../../services/groqRAGService.js';
 
 export default async function handler(req, res) {
   console.log('🔍 Simple RAG AI Recommendation API called with method:', req.method);
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     console.log('🔍 Generating simple RAG recommendations for message:', message);
     
     // Use simple Groq RAG system for recommendations
-    const result = await getGroqRecommendations(message, customerId, context);
+    const result = await recommendProducts(message);
     console.log('🔍 Generated simple RAG recommendations:', JSON.stringify(result, null, 2));
 
     if (!result.success) {
