@@ -7,13 +7,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message, quickReply } = req.body;
+    const { message, quickReply, context } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    console.log(`🎯 Working Production API: Processing "${message}"`);
+    console.log(`🎯 Working Production API: Processing "${message}" with context:`, context);
     
     // Import the normalized catalog
     const { normalizedProductCatalog } = await import('../../../data/normalizedProductCatalog.js');
@@ -25,37 +25,54 @@ export default async function handler(req, res) {
     // Simple product filtering based on query
     let filteredProducts = normalizedProductCatalog;
     
-    // Quick reply handling
+    // Context-aware quick reply handling
+    const currentContext = context || {};
+    const lastCategory = currentContext.lastCategory || null;
+    
     if (quickReply || /^[1-4]$/.test(message)) {
       const quickReplyNumber = parseInt(message);
-      console.log(`📱 Quick reply detected: ${quickReplyNumber}`);
+      console.log(`📱 Quick reply detected: ${quickReplyNumber} in context: ${lastCategory}`);
       
-      const mappings = {
-        1: { 
-          category: "Fashion", 
-          subcategory: "Bags", 
-          query: "luxury handbags",
-          brands: ["Chanel", "Hermès", "Louis Vuitton", "Gucci"]
-        },
-        2: { 
-          category: "Skincare", 
-          query: "luxury skincare",
-          brands: ["La Mer", "SK-II", "Chanel"]
-        },
-        3: { 
-          category: "Wellness", 
-          query: "wellness relaxation",
-          brands: ["Aromatherapy Associates", "Jo Malone", "This Works"]
-        },
-        4: { 
-          query: "luxury products",
-          brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"]
-        }
-      };
+      // Context-aware mappings
+      let mappings = {};
+      
+      if (lastCategory === 'wellness') {
+        mappings = {
+          1: { category: "Wellness", query: "more wellness products", brands: ["Aromatherapy Associates", "Jo Malone", "This Works"] },
+          2: { category: "Skincare", query: "skincare products", brands: ["La Mer", "SK-II", "Chanel"] },
+          3: { query: "all luxury products", brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"] }
+        };
+      } else if (lastCategory === 'skincare') {
+        mappings = {
+          1: { category: "Skincare", query: "more skincare products", brands: ["La Mer", "SK-II", "Chanel"] },
+          2: { category: "Wellness", query: "wellness products", brands: ["Aromatherapy Associates", "Jo Malone", "This Works"] },
+          3: { query: "all luxury products", brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"] }
+        };
+      } else if (lastCategory === 'bags' || lastCategory === 'fashion') {
+        mappings = {
+          1: { category: "Fashion", subcategory: "Bags", query: "more luxury handbags", brands: ["Chanel", "Hermès", "Louis Vuitton", "Gucci"] },
+          2: { category: "Fashion", query: "luxury accessories", brands: ["Chanel", "Hermès", "Louis Vuitton", "Gucci"] },
+          3: { query: "all luxury products", brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"] }
+        };
+      } else if (lastCategory === 'watches') {
+        mappings = {
+          1: { category: "Watches", query: "more luxury watches", brands: ["Rolex", "Cartier", "Omega"] },
+          2: { category: "Jewelry", query: "luxury jewelry", brands: ["Bulgari", "Cartier", "Tiffany"] },
+          3: { query: "all luxury products", brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"] }
+        };
+      } else {
+        // Default mappings for new conversations
+        mappings = {
+          1: { category: "Fashion", subcategory: "Bags", query: "luxury handbags", brands: ["Chanel", "Hermès", "Louis Vuitton", "Gucci"] },
+          2: { category: "Skincare", query: "luxury skincare", brands: ["La Mer", "SK-II", "Chanel"] },
+          3: { category: "Wellness", query: "wellness relaxation", brands: ["Aromatherapy Associates", "Jo Malone", "This Works"] },
+          4: { query: "luxury products", brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"] }
+        };
+      }
       
       const mapping = mappings[quickReplyNumber];
       if (mapping) {
-        console.log(`🎯 Mapping:`, mapping);
+        console.log(`🎯 Context-aware mapping:`, mapping);
         
         if (mapping.category) {
           // Filter by category first
@@ -121,12 +138,69 @@ export default async function handler(req, res) {
     // Take top 3 products
     const topProducts = filteredProducts.slice(0, 3);
     
+    // Determine current category for context
+    let currentCategory = lastCategory;
+    
+    // For quick replies, determine category based on the mapping
+    if (quickReply || /^[1-4]$/.test(message)) {
+      const quickReplyNumber = parseInt(message);
+      
+      // Determine category based on context and quick reply
+      if (lastCategory === 'wellness') {
+        if (quickReplyNumber === 1) currentCategory = 'wellness';
+        else if (quickReplyNumber === 2) currentCategory = 'skincare';
+        else if (quickReplyNumber === 3) currentCategory = null; // Show all
+      } else if (lastCategory === 'skincare') {
+        if (quickReplyNumber === 1) currentCategory = 'skincare';
+        else if (quickReplyNumber === 2) currentCategory = 'wellness';
+        else if (quickReplyNumber === 3) currentCategory = null; // Show all
+      } else if (lastCategory === 'bags' || lastCategory === 'fashion') {
+        if (quickReplyNumber === 1) currentCategory = 'bags';
+        else if (quickReplyNumber === 2) currentCategory = 'fashion';
+        else if (quickReplyNumber === 3) currentCategory = null; // Show all
+      } else if (lastCategory === 'watches') {
+        if (quickReplyNumber === 1) currentCategory = 'watches';
+        else if (quickReplyNumber === 2) currentCategory = 'jewelry';
+        else if (quickReplyNumber === 3) currentCategory = null; // Show all
+      } else {
+        // Default mappings for new conversations
+        if (quickReplyNumber === 1) currentCategory = 'bags';
+        else if (quickReplyNumber === 2) currentCategory = 'skincare';
+        else if (quickReplyNumber === 3) currentCategory = 'wellness';
+        else if (quickReplyNumber === 4) currentCategory = null; // Show all
+      }
+      
+      // For "show all" (currentCategory = null), maintain the previous category context
+      if (currentCategory === null && lastCategory) {
+        currentCategory = lastCategory;
+      }
+      
+      // Special case: when selecting wellness (3) from any context, set to wellness
+      if (quickReplyNumber === 3 && lastCategory !== 'wellness') {
+        currentCategory = 'wellness';
+      }
+    } else if (topProducts.length > 0) {
+      // For text queries, determine category from products
+      const firstProduct = topProducts[0];
+      if (firstProduct.category.some(cat => cat.toLowerCase().includes('wellness'))) {
+        currentCategory = 'wellness';
+      } else if (firstProduct.category.some(cat => cat.toLowerCase().includes('skincare'))) {
+        currentCategory = 'skincare';
+      } else if (firstProduct.category.some(cat => cat.toLowerCase().includes('bags'))) {
+        currentCategory = 'bags';
+      } else if (firstProduct.category.some(cat => cat.toLowerCase().includes('watches'))) {
+        currentCategory = 'watches';
+      } else if (firstProduct.category.some(cat => cat.toLowerCase().includes('jewelry'))) {
+        currentCategory = 'jewelry';
+      }
+    }
+    
     // Generate response with quick reply context
     const quickReplyNumber = quickReply || (/^[1-4]$/.test(message) ? parseInt(message) : null);
     const response = {
       success: true,
       naturalResponse: {
-        opening: generateOpening(message, topProducts.length, quickReplyNumber),
+        opening: generateOpening(message, topProducts.length, quickReplyNumber, currentCategory),
         items: topProducts.map(product => ({
           id: product.sku,
           headline: product.title,
@@ -140,13 +214,17 @@ export default async function handler(req, res) {
           image: product.images[0] || "🛍️"
         })),
         cta: "Which product interests you most?",
-        quick_replies: generateQuickReplies(message, topProducts, quickReplyNumber),
+        quick_replies: generateQuickReplies(message, topProducts, quickReplyNumber, currentCategory),
         metadata: {
           totalProducts: filteredProducts.length,
           displayedProducts: topProducts.length,
           region: "UAE",
           currency: "AED",
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          context: {
+            lastCategory: currentCategory, // Use the determined category
+            conversationId: context?.conversationId || `conv_${Date.now()}`
+          }
         }
       },
       metadata: {
@@ -183,18 +261,49 @@ export default async function handler(req, res) {
 }
 
 // Helper functions
-function generateOpening(query, productCount, quickReplyNumber = null) {
+function generateOpening(query, productCount, quickReplyNumber = null, currentCategory = null) {
   const queryLower = query.toLowerCase();
   
-  // Handle quick replies first
+  // Handle quick replies with context awareness
   if (quickReplyNumber) {
-    const quickReplyMessages = {
-      1: "Welcome to our luxury handbag collection! Here are our top picks for you.",
-      2: "Welcome to our luxury skincare collection! Premium beauty products for you.",
-      3: "Discover our wellness collection! Luxury products for your well-being.",
-      4: "Welcome to our luxury boutique! Here are our finest products across all categories."
-    };
-    return quickReplyMessages[quickReplyNumber] || `Welcome to our luxury boutique! We found ${productCount} perfect products for you.`;
+    if (currentCategory === 'wellness') {
+      const wellnessMessages = {
+        1: "Here are more wellness products for your relaxation and well-being.",
+        2: "Let me show you some luxury skincare products that complement your wellness routine.",
+        3: "Explore our complete luxury collection across all categories."
+      };
+      return wellnessMessages[quickReplyNumber] || "Here are more wellness products for you.";
+    } else if (currentCategory === 'skincare') {
+      const skincareMessages = {
+        1: "Here are more luxury skincare products for your beauty routine.",
+        2: "Let me show you some wellness products that enhance your skincare routine.",
+        3: "Explore our complete luxury collection across all categories."
+      };
+      return skincareMessages[quickReplyNumber] || "Here are more skincare products for you.";
+    } else if (currentCategory === 'bags' || currentCategory === 'fashion') {
+      const fashionMessages = {
+        1: "Here are more luxury handbags from our collection.",
+        2: "Let me show you some luxury accessories to complement your style.",
+        3: "Explore our complete luxury collection across all categories."
+      };
+      return fashionMessages[quickReplyNumber] || "Here are more luxury handbags for you.";
+    } else if (currentCategory === 'watches') {
+      const watchMessages = {
+        1: "Here are more luxury timepieces from our collection.",
+        2: "Let me show you some luxury jewelry to complement your watch.",
+        3: "Explore our complete luxury collection across all categories."
+      };
+      return watchMessages[quickReplyNumber] || "Here are more luxury watches for you.";
+    } else {
+      // Default messages for new conversations
+      const defaultMessages = {
+        1: "Welcome to our luxury handbag collection! Here are our top picks for you.",
+        2: "Welcome to our luxury skincare collection! Premium beauty products for you.",
+        3: "Discover our wellness collection! Luxury products for your well-being.",
+        4: "Welcome to our luxury boutique! Here are our finest products across all categories."
+      };
+      return defaultMessages[quickReplyNumber] || `Welcome to our luxury boutique! We found ${productCount} perfect products for you.`;
+    }
   }
   
   if (queryLower.includes('hermes') || queryLower.includes('hermès')) {
@@ -220,19 +329,30 @@ function generateOpening(query, productCount, quickReplyNumber = null) {
   }
 }
 
-function generateQuickReplies(query, products, quickReplyNumber = null) {
+function generateQuickReplies(query, products, quickReplyNumber = null, currentCategory = null) {
   const queryLower = query.toLowerCase();
   const brands = [...new Set(products.map(p => p.brand))];
   
-  // Handle quick replies first
+  // Handle quick replies with context awareness
   if (quickReplyNumber) {
-    const quickReplyOptions = {
-      1: ["More luxury handbags", "View accessories", "Show me everything"],
-      2: ["More skincare products", "View wellness items", "Show me everything"],
-      3: ["More wellness products", "View spa items", "Show me everything"],
-      4: ["View more products", "Get help", "Contact us"]
-    };
-    return quickReplyOptions[quickReplyNumber] || ["View more products", "Get help", "Contact us"];
+    if (currentCategory === 'wellness') {
+      return ["More wellness products", "View skincare items", "Show me everything"];
+    } else if (currentCategory === 'skincare') {
+      return ["More skincare products", "View wellness items", "Show me everything"];
+    } else if (currentCategory === 'bags' || currentCategory === 'fashion') {
+      return ["More luxury handbags", "View accessories", "Show me everything"];
+    } else if (currentCategory === 'watches') {
+      return ["More luxury watches", "View jewelry", "Show me everything"];
+    } else {
+      // Default options for new conversations
+      const quickReplyOptions = {
+        1: ["More luxury handbags", "View accessories", "Show me everything"],
+        2: ["More skincare products", "View wellness items", "Show me everything"],
+        3: ["More wellness products", "View spa items", "Show me everything"],
+        4: ["View more products", "Get help", "Contact us"]
+      };
+      return quickReplyOptions[quickReplyNumber] || ["View more products", "Get help", "Contact us"];
+    }
   }
   
   if (brands.length >= 2) {

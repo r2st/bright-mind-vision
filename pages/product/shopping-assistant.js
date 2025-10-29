@@ -8,6 +8,10 @@ const EcommerceChatBot = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [conversationContext, setConversationContext] = useState({
+    lastCategory: null,
+    conversationId: `conv_${Date.now()}`
+  });
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -68,7 +72,7 @@ const EcommerceChatBot = () => {
     }, 100);
 
     try {
-      const response = await fetch('/api/meshai/working-production-recommendation', {
+        const response = await fetch('/api/meshai/optimized-ai-recommendation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -77,6 +81,7 @@ const EcommerceChatBot = () => {
           message: inputMessage,
           customerId: `web-${Date.now()}`,
           context: {
+            ...conversationContext,
             source: 'web',
             timestamp: new Date().toISOString()
           }
@@ -91,6 +96,14 @@ const EcommerceChatBot = () => {
         if (data.naturalResponse) {
           // Use natural language response from working production API
           const { naturalResponse } = data;
+          
+          // Update conversation context based on response
+          if (naturalResponse.metadata?.context?.lastCategory) {
+            setConversationContext(prev => ({
+              ...prev,
+              lastCategory: naturalResponse.metadata.context.lastCategory
+            }));
+          }
           
           botResponse = `${naturalResponse.opening}\n\n`;
           
@@ -155,6 +168,14 @@ const EcommerceChatBot = () => {
     }
   };
 
+  const handleQuickReplyClick = (quickReplyNumber) => {
+    setInputMessage(quickReplyNumber);
+    // Auto-send the quick reply
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  };
+
   return (
     <>
       <SEO 
@@ -195,17 +216,36 @@ const EcommerceChatBot = () => {
                 >
                   <div className={styles.messageContent}>
                     <div className={styles.messageText}>
-                      {message.text.split('\n').map((line, index) => (
-                        <div key={index}>
-                          {line.includes('*') ? (
-                            <span dangerouslySetInnerHTML={{ 
-                              __html: line.replace(/\*(.*?)\*/g, '<strong>$1</strong>') 
-                            }} />
-                          ) : (
-                            line
-                          )}
-                        </div>
-                      ))}
+                      {message.text.split('\n').map((line, index) => {
+                        // Check if this is a quick reply line
+                        const quickReplyMatch = line.match(/^(\d+)\.\s(.+)$/);
+                        if (quickReplyMatch) {
+                          const [, number, text] = quickReplyMatch;
+                          return (
+                            <div key={index} className={styles.quickReplyContainer}>
+                              <button 
+                                className={styles.quickReplyButton}
+                                onClick={() => handleQuickReplyClick(number)}
+                              >
+                                {number}. {text}
+                              </button>
+                            </div>
+                          );
+                        }
+                        
+                        // Regular text line
+                        return (
+                          <div key={index}>
+                            {line.includes('*') ? (
+                              <span dangerouslySetInnerHTML={{ 
+                                __html: line.replace(/\*(.*?)\*/g, '<strong>$1</strong>') 
+                              }} />
+                            ) : (
+                              line
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

@@ -748,6 +748,49 @@
   }
 }
 
+/* Quick Reply Button Styles */
+.quickReplyContainer {
+  margin: 0.5rem 0;
+}
+
+.quickReplyButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: inline-block;
+  text-align: left;
+  min-width: 120px;
+}
+
+.quickReplyButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+}
+
+.quickReplyButton:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive quick reply buttons */
+@media (max-width: 768px) {
+  .quickReplyButton {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    margin: 0.2rem 0.3rem 0.2rem 0;
+    min-width: 100px;
+  }
+}
+
 /* Large screens optimization */
 @media (min-width: 1400px) {
   .chatContainer {

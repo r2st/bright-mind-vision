@@ -124,6 +124,52 @@ export const normalizedProductCatalog = [
     reviews: 203
   },
   {
+    sku: "SK-II-FTE-230ML",
+    title: "SK-II Facial Treatment Essence",
+    brand: "SK-II",
+    category: ["Skincare", "Essence", "Anti-Aging"],
+    price: { amount: 1800, currency: "AED" },
+    availability: { region: ["UAE"], in_stock: true },
+    attributes: {
+      skin_type: "All",
+      concern: "Anti-Aging",
+      size: "230ml",
+      texture: "Essence"
+    },
+    badges: ["luxury", "japanese", "essence"],
+    images: ["✨"],
+    urls: { pdp: "/products/sk-ii-essence" },
+    compliance: { age_restricted: false },
+    updated_at: "2025-10-29T09:12:00Z",
+    description: "The iconic Japanese essence with Pitera™ for radiant, youthful-looking skin. A cult-favorite luxury skincare essential.",
+    tags: ["luxury", "sk-ii", "skincare", "essence", "japanese"],
+    rating: 4.8,
+    reviews: 234
+  },
+  {
+    sku: "CHANEL-SUBLIMAGE-50ML",
+    title: "Chanel Sublimage La Crème",
+    brand: "Chanel",
+    category: ["Skincare", "Moisturizer", "Anti-Aging"],
+    price: { amount: 2800, currency: "AED" },
+    availability: { region: ["UAE"], in_stock: true },
+    attributes: {
+      skin_type: "Dry",
+      concern: "Anti-Aging",
+      size: "50ml",
+      texture: "Cream"
+    },
+    badges: ["luxury", "chanel", "premium"],
+    images: ["🌹"],
+    urls: { pdp: "/products/chanel-sublimage" },
+    compliance: { age_restricted: false },
+    updated_at: "2025-10-29T09:12:00Z",
+    description: "Ultra-luxurious anti-aging cream with vanilla planifolia extract for deeply nourished, radiant skin.",
+    tags: ["luxury", "chanel", "skincare", "moisturizer", "anti-aging"],
+    rating: 4.7,
+    reviews: 189
+  },
+  {
     sku: "BG-SERPENTI-ROSE-GOLD",
     title: "Bulgari Serpenti",
     brand: "Bulgari",
