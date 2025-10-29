@@ -10,6 +10,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Full-screen chat overrides */
+body.fullscreen-chat {
+  overflow: hidden !important;
+}
+
+html.fullscreen-chat {
+  overflow: hidden !important;
+}
+
+.MainLayout_main__Dv1rv.fullscreen-chat {
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -97,11 +97,17 @@ export const CTA_TEMPLATES = {
 
 // System prompt for natural language generation
 const SYSTEM_PROMPT = (style) => `
-You're a helpful shopping assistant for luxury and wellness products.
+You're a helpful shopping assistant for luxury and wellness products in Dubai, UAE.
 Write natural, warm, concise replies that feel human and trustworthy.
 
-Ground every claim strictly in provided product fields: id, name, benefits, is_organic, category, rating.
-No medical claims. No invented features. No over-selling.
+IMPORTANT RULES:
+- All prices are in AED (UAE Dirham) - NEVER use USD or other currencies
+- Use actual product names in quick replies, NOT product IDs like "P005"
+- Use ONLY the provided product data: id, name, benefits, category, price, rating, description, tags, brand
+- NEVER invent prices - use the exact price provided for each product
+- NEVER invent product names - use the exact name provided
+- If a product has price 0, don't show it or mention it
+- No medical claims. No invented features. No over-selling.
 
 Style guidelines:
 - Persona: ${style.persona} (friendly=warm and approachable, expert=knowledgeable and confident, concise=direct and efficient)
@@ -128,19 +134,25 @@ export async function generateNaturalResponse({ userQuery, picks, style, intent 
     const openingTemplates = OPENING_TEMPLATES[intent] || OPENING_TEMPLATES.relaxation;
     const selectedOpening = openingTemplates[Math.floor(Math.random() * openingTemplates.length)];
     
-    // Prepare content for Groq
+    // Prepare content for Groq with proper product data
     const content = JSON.stringify({
       user_query: userQuery,
       style,
-      picks: picks.map(p => ({
-        id: p.productId || p.id,
-        name: p.product?.name || p.name,
-        benefits: p.product?.benefits || p.benefits || [],
-        is_organic: p.product?.is_organic || p.is_organic || false,
-        category: p.product?.category || p.category,
-        price: p.product?.price || p.price,
-        rating: p.product?.rating || p.rating
-      }))
+      picks: picks.map(p => {
+        const product = p.product || p;
+        return {
+          id: product.id || p.productId || p.id,
+          name: product.name,
+          benefits: product.benefits || [],
+          is_organic: product.is_organic || false,
+          category: product.category,
+          price: product.price || 0,
+          rating: product.rating || 0,
+          description: product.description || '',
+          tags: product.tags || [],
+          brand: product.brand || ''
+        };
+      })
     });
 
     const response = await groq.chat.completions.create({
@@ -208,19 +220,35 @@ function generateFallbackResponse(picks, style, intent) {
   const openingTemplates = OPENING_TEMPLATES[intent] || OPENING_TEMPLATES.relaxation;
   const ctaTemplates = CTA_TEMPLATES[intent] || CTA_TEMPLATES.relaxation;
   
+  // Filter out products with no price or invalid data
+  const validPicks = picks.filter(pick => {
+    const product = pick.product || pick;
+    return product.price && product.price > 0 && product.name;
+  });
+  
+  // Generate quick replies based on actual product names
+  const quickReplies = validPicks.slice(0, 3).map(pick => {
+    const product = pick.product || pick;
+    return `Learn more about ${product.name}`;
+  });
+  
+  // Add generic options if we have fewer than 3 products
+  if (quickReplies.length < 3) {
+    quickReplies.push("Show different options", "What's your budget?");
+  }
+  
   return {
     opening: openingTemplates[0],
-    items: picks.slice(0, 3).map((pick, index) => ({
-      id: pick.productId || pick.id,
-      headline: pick.product?.name || pick.name,
-      one_liner: `Great choice for ${pick.product?.category || pick.category} needs.`
-    })),
+    items: validPicks.slice(0, 3).map((pick, index) => {
+      const product = pick.product || pick;
+      return {
+        id: product.id || pick.productId || pick.id,
+        headline: product.name,
+        one_liner: `Great choice for ${product.category} needs.`
+      };
+    }),
     cta: ctaTemplates[0],
-    quick_replies: [
-      "Tell me more",
-      "Show different options", 
-      "What's your budget?"
-    ]
+    quick_replies: quickReplies.slice(0, 3)
   };
 }
 

@@ -1,5 +1,6 @@
 // WhatsApp Business API Webhook Handler
 // Handles incoming messages and triggers AI product recommendations
+// Now using Advanced Multi-Agent System
 
 export default async function handler(req, res) {
   console.log('🔍 WhatsApp webhook called with method:', req.method);
@@ -167,13 +168,17 @@ async function handleIncomingMessage(message, contact) {
     const quickReplyAction = handleQuickReply(messageData.message);
     if (quickReplyAction) {
       console.log('🔢 Quick reply detected:', quickReplyAction);
+      await sendTypingIndicator(messageData.from);
       await handleQuickReplyAction(quickReplyAction, messageData.from);
       await markMessageAsProcessed(messageData.id);
       return;
     }
 
-    // Trigger AI product recommendation
-    await triggerAIRecommendation(messageData);
+    // Show typing indicator before processing
+    await sendTypingIndicator(messageData.from);
+    
+    // Trigger AI product recommendation using production API
+    await triggerProductionRecommendation(messageData);
 
     console.log('✅ Successfully processed WhatsApp message:', messageData.id);
   } catch (error) {
@@ -189,11 +194,12 @@ function handleQuickReply(message) {
   if (/^[1-9]$/.test(trimmedMessage)) {
     const number = parseInt(trimmedMessage);
     
-    // Map quick reply numbers to specific actions
+    // Map quick reply numbers to specific actions based on context
     const quickReplyActions = {
-      1: "fashion", // View all Fashion items
-      2: "brands",  // Filter by brand
-      3: "price"    // Shop by price
+      1: "luxury-bags",     // Luxury bags
+      2: "skincare",        // Skincare products
+      3: "wellness",        // Wellness items
+      4: "all-products"     // Show me everything
     };
     
     return quickReplyActions[number] || null;
@@ -224,9 +230,9 @@ async function handleQuickReplyAction(action, from) {
   try {
     console.log('🎯 Handling quick reply action:', action);
     
-    // Call the RAG API with the specific action
+    // Call the Simplified Advanced Multi-Agent API with the specific action
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/meshai/ai-recommendation-rag`, {
+    const response = await fetch(`${baseUrl}/api/meshai/simplified-advanced-recommendation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -269,6 +275,13 @@ async function handleQuickReplyAction(action, from) {
 // Get action-specific message for RAG
 function getActionMessage(action) {
   const actionMessages = {
+    'luxury-bags': 'Show me luxury handbags and bags from top brands like Chanel, Hermès, Louis Vuitton, and Gucci',
+    'skincare': 'Show me luxury skincare products from brands like La Mer, SK-II, and other premium beauty brands',
+    'wellness': 'Show me luxury wellness products including spa items, relaxation products, and wellness accessories',
+    'all-products': 'Show me all luxury products across all categories including fashion, watches, jewelry, skincare, and wellness',
+    'louis-vuitton': 'Show me Louis Vuitton products including bags, accessories, and luxury items',
+    'chanel': 'Show me Chanel products including handbags, accessories, and luxury items',
+    'hermes': 'Show me Hermès products including handbags, accessories, and luxury items',
     'fashion': 'Show me all fashion products including bags, accessories, and luxury items',
     'brands': 'Show me products from luxury brands like Chanel, Hermès, Gucci, Louis Vuitton, Rolex, and La Mer',
     'price': 'Show me luxury products at different price ranges',
@@ -283,6 +296,10 @@ function getActionMessage(action) {
 // Get fallback message for quick reply actions
 function getFallbackMessage(action) {
   const fallbackMessages = {
+    'louis-vuitton': "Here's our Louis Vuitton collection! Let me show you the best luxury items from Louis Vuitton.",
+    'chanel': "Perfect! Let me show you our Chanel collection including handbags and accessories.",
+    'hermes': "Excellent! Here's our Hermès collection featuring luxury handbags and accessories.",
+    'all-products': "Wonderful! Let me show you our complete luxury collection across all categories.",
     'fashion': "Here are our top fashion products! Let me show you the best luxury items from our collection.",
     'brands': "Perfect! Let me show you products from our luxury brand partners like Chanel, Hermès, Gucci, and more.",
     'price': "Great! Let me show you luxury products at different price points to fit your budget.",
@@ -325,6 +342,15 @@ function generateContextualResponse(message) {
     return "Wonderful! I can help you find luxury fragrances from Tom Ford, Chanel, Dior, and other exclusive brands. What type of scent do you prefer?";
   }
   
+  // Handle non-product queries gracefully
+  if (lowerMessage.includes('car') || lowerMessage.includes('vehicle') || lowerMessage.includes('automobile')) {
+    return "I specialize in luxury fashion, skincare, wellness, and lifestyle products. While I don't have cars, I can help you find luxury accessories, watches, or other premium items. What interests you?";
+  }
+  
+  if (lowerMessage.includes('house') || lowerMessage.includes('home') || lowerMessage.includes('property')) {
+    return "I focus on luxury personal products like fashion, skincare, and wellness items. For home decor, I have some beautiful luxury pieces. What type of personal luxury items are you looking for?";
+  }
+  
   // General product requests
   if (lowerMessage.includes('luxury') || lowerMessage.includes('premium') || lowerMessage.includes('high-end')) {
     return "I love that you're looking for luxury items! I have an exclusive collection of premium products. What specific category interests you most?";
@@ -349,14 +375,79 @@ async function storeMessage(messageData) {
   // In production, save to your database
 }
 
-// Trigger AI product recommendation with natural response
+// Trigger Production AI recommendation
+async function triggerProductionRecommendation(messageData) {
+  try {
+    console.log('🎯 Triggering production AI recommendation for:', messageData.from);
+    
+    const message = messageData.text?.body || '';
+    const quickReply = handleQuickReply(message);
+    
+    let query = message;
+    if (quickReply) {
+      query = getActionMessage(quickReply);
+      console.log(`📱 Quick reply detected: ${quickReply} -> ${query}`);
+    }
+    
+    const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/meshai/working-production-recommendation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: query,
+        quickReply: !!quickReply
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Production API error: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('📊 Production API result:', result.success ? 'Success' : 'Failed');
+    
+    if (result.success && result.naturalResponse) {
+      const formattedMessage = result.formattedMessage || formatProductionResponse(result.naturalResponse);
+      await sendWhatsAppMessage(messageData.from, formattedMessage);
+    } else {
+      await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
+    }
+    
+  } catch (error) {
+    console.error('❌ Production AI recommendation failed:', error);
+    await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
+  }
+}
+
+// Format production response for WhatsApp
+function formatProductionResponse(response) {
+  const { opening, items, cta, quick_replies } = response;
+  
+  let message = `${opening}\n\n`;
+  
+  if (items && items.length > 0) {
+    items.forEach((item, index) => {
+      message += `${index + 1}. ${item.image} ${item.headline} - ${item.price}\n`;
+      message += `   ${item.one_liner}\n\n`;
+    });
+  }
+  
+  message += `💬 ${cta}\n\n`;
+  message += `Quick replies:\n`;
+  quick_replies.forEach((reply, index) => {
+    message += `${index + 1}. ${reply}\n`;
+  });
+  
+  return message;
+}
+
+// Legacy AI recommendation (kept for fallback)
 async function triggerAIRecommendation(messageData) {
   try {
     console.log('🤖 Triggering AI recommendation for message:', messageData.message);
     
-    // Call the enhanced RAG-based AI recommendation API
+    // Call the Simplified Advanced Multi-Agent AI recommendation API
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/meshai/ai-recommendation-rag`, {
+    const response = await fetch(`${baseUrl}/api/meshai/simplified-advanced-recommendation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -422,6 +513,41 @@ async function storeRecommendation(recommendationData) {
 async function markMessageAsProcessed(messageId) {
   // Update message status in database
   console.log('Marking message as processed:', messageId);
+}
+
+// Send typing indicator
+async function sendTypingIndicator(to) {
+  try {
+    console.log('⌨️ Sending typing indicator to:', to);
+    
+    const response = await fetch(`https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: to,
+        type: 'text',
+        text: {
+          body: '...'
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('❌ Typing indicator failed:', response.status, errorData);
+      return false;
+    }
+
+    console.log('✅ Typing indicator sent successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending typing indicator:', error);
+    return false;
+  }
 }
 
 // Send WhatsApp message

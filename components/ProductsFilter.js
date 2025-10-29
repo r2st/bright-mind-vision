@@ -86,6 +86,34 @@ const products = [
     secondaryText: 'View Dashboard',
     gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
     accentColor: '#f093fb'
+  },
+  {
+    id: 'shopping-assistant',
+    category: 'ecommerce',
+    title: 'Shopping Assistant',
+    subtitle: 'AI E-commerce Chat Bot',
+    icon: '🛍️',
+    description: 'Revolutionize e-commerce with intelligent AI shopping assistant. Provide personalized product recommendations, handle customer inquiries, and enhance shopping experience through WhatsApp integration and web chat.',
+    features: [
+      'AI Product Recommendations',
+      'WhatsApp Business Integration',
+      'Natural Language Processing',
+      'Luxury Product Curation',
+      'Real-time Chat Support',
+      'Multi-channel Communication'
+    ],
+    benefits: [
+      'Increase sales by 40%',
+      '24/7 customer support',
+      'Personalized shopping experience',
+      'Automated product discovery'
+    ],
+    primaryLink: '/product/shopping-assistant',
+    secondaryLink: '/product/shopping-assistant',
+    primaryText: 'Try Chat Bot',
+    secondaryText: 'Learn More',
+    gradient: 'linear-gradient(135deg, #25d366 0%, #128c7e 100%)',
+    accentColor: '#25d366'
   }
 ];
 
@@ -121,6 +149,12 @@ const ProductsFilter = () => {
           onClick={() => setActiveTab('wellness')}
         >
           Wellness
+        </button>
+        <button 
+          className={`filter-btn ${activeTab === 'ecommerce' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ecommerce')}
+        >
+          E-commerce
         </button>
       </nav>
 

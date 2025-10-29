@@ -26,9 +26,10 @@ export const GROQ_CONFIG = {
   }
 };
 
-// Model Selection Logic
-export function pickModels({ needComplexity, scoreSpread }) {
-  const primary = (needComplexity === 'high' || scoreSpread < 5)
+// Optimized Model Selection Logic
+export function pickModels({ needComplexity, scoreSpread, queryLength }) {
+  // Use faster model for simple queries and when we have good candidate diversity
+  const primary = (needComplexity === 'high' || scoreSpread < 3 || queryLength > 50)
     ? GROQ_CONFIG.models.versatile
     : GROQ_CONFIG.models.primary;
 
@@ -84,7 +85,61 @@ export const NEED_AFFORDANCES = {
 export function classifyIntent(userQuery) {
   const query = userQuery.toLowerCase();
   
-  // Check for specific needs and find the best match
+  // Enhanced product category detection with higher priority
+  const categoryKeywords = {
+    'fashion_accessories': ['bag', 'handbag', 'purse', 'bags', 'clutch', 'tote', 'shoulder bag', 'crossbody', 'satchel', 'backpack'],
+    'jewelry_watches': ['watch', 'timepiece', 'watches', 'jewelry', 'necklace', 'bracelet', 'ring', 'earrings', 'pendant'],
+    'beauty_skincare': ['skincare', 'beauty', 'cream', 'serum', 'moisturizer', 'cleanser', 'toner', 'mask', 'anti-aging'],
+    'fragrance': ['perfume', 'fragrance', 'cologne', 'scent', 'eau de parfum', 'eau de toilette', 'parfum'],
+    'home_decor': ['home', 'decor', 'decoration', 'furniture', 'lamp', 'candle', 'vase', 'art', 'sculpture'],
+    'wellness_general': ['wellness', 'health', 'supplement', 'vitamin', 'organic', 'natural', 'holistic']
+  };
+  
+  // Check for non-product queries first
+  const nonProductKeywords = ['car', 'vehicle', 'automobile', 'house', 'home', 'property', 'real estate', 'food', 'restaurant', 'hotel', 'travel', 'flight'];
+  if (nonProductKeywords.some(keyword => query.includes(keyword))) {
+    return {
+      primaryNeed: 'non_product',
+      matchedAffordances: nonProductKeywords.filter(keyword => query.includes(keyword)),
+      confidence: 0.9
+    };
+  }
+  
+  // Check for specific product categories first (highest priority)
+  for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    const matches = keywords.filter(keyword => query.includes(keyword));
+    if (matches.length > 0) {
+      return {
+        primaryNeed: category,
+        matchedAffordances: matches,
+        confidence: Math.min(0.9, 0.6 + (matches.length * 0.1))
+      };
+    }
+  }
+  
+  // Check for luxury indicators
+  if (query.includes('luxury') || query.includes('premium') || query.includes('high-end') || query.includes('designer')) {
+    // If luxury is mentioned with a specific category, prioritize that category
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      const matches = keywords.filter(keyword => query.includes(keyword));
+      if (matches.length > 0) {
+        return {
+          primaryNeed: category,
+          matchedAffordances: [...matches, 'luxury'],
+          confidence: 0.95
+        };
+      }
+    }
+    
+    // If just luxury without specific category, return luxury with high confidence
+    return {
+      primaryNeed: 'luxury',
+      matchedAffordances: ['luxury', 'premium'],
+      confidence: 0.8
+    };
+  }
+  
+  // Check for specific needs and affordances
   let bestMatch = null;
   let bestScore = 0;
   
@@ -107,36 +162,11 @@ export function classifyIntent(userQuery) {
   }
   
   // If we found a match, return it
-  if (bestMatch) {
+  if (bestMatch && bestMatch.confidence > 0.3) {
     return bestMatch;
   }
   
-  // Special handling for common product categories
-  if (query.includes('watch') || query.includes('timepiece')) {
-    return {
-      primaryNeed: 'jewelry_watches',
-      matchedAffordances: ['watch', 'timepiece'],
-      confidence: 0.8
-    };
-  }
-  
-  if (query.includes('bag') || query.includes('handbag') || query.includes('purse')) {
-    return {
-      primaryNeed: 'fashion_accessories',
-      matchedAffordances: ['handbag', 'bag'],
-      confidence: 0.8
-    };
-  }
-  
-  if (query.includes('luxury') || query.includes('premium')) {
-    return {
-      primaryNeed: 'luxury',
-      matchedAffordances: ['luxury', 'premium'],
-      confidence: 0.7
-    };
-  }
-  
-  // Default to general wellness
+  // Default to general wellness with low confidence
   return {
     primaryNeed: 'wellness_general',
     matchedAffordances: ['wellness', 'health'],

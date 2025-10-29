@@ -445,50 +445,113 @@ export function filterProducts(products, primaryNeed, affordances) {
   if (!products || products.length === 0) return [];
   
   return products.filter(product => {
-    // Filter by primary need category
-    const categoryMatch = product.category.toLowerCase().includes(primaryNeed.toLowerCase()) ||
-                         primaryNeed === 'luxury' ||
-                         primaryNeed === 'wellness_general';
+    // Enhanced category mapping for better filtering
+    const categoryMap = {
+      'fashion_accessories': ['Fashion'],
+      'jewelry_watches': ['Watches', 'Jewelry'],
+      'beauty_skincare': ['Skincare', 'Beauty'],
+      'fragrance': ['Fragrance'],
+      'home_decor': ['Home', 'Decor'],
+      'wellness_general': ['Wellness', 'Health'],
+      'luxury': ['Fashion', 'Watches', 'Jewelry', 'Fragrance', 'Skincare', 'Home']
+    };
     
-    // Filter by affordances
-    const affordanceMatch = affordances.some(affordance => 
-      product.affordances?.includes(affordance) ||
-      product.tags?.includes(affordance) ||
-      product.benefits?.some(benefit => benefit.includes(affordance))
+    // Get target categories for the primary need
+    const targetCategories = categoryMap[primaryNeed] || [primaryNeed];
+    
+    // Check if product category matches
+    const categoryMatch = targetCategories.some(cat => 
+      product.category === cat || 
+      product.category.toLowerCase().includes(cat.toLowerCase())
     );
     
-    return categoryMatch || affordanceMatch;
+    if (!categoryMatch) return false;
+    
+    // Special handling for specific product types
+    if (primaryNeed === 'fashion_accessories') {
+      // For bags/handbags, only return actual bags
+      if (affordances.some(aff => ['bag', 'handbag', 'purse', 'bags'].includes(aff))) {
+        return product.tags?.includes('handbag') || 
+               product.tags?.includes('bag') ||
+               product.name.toLowerCase().includes('bag') ||
+               product.name.toLowerCase().includes('handbag') ||
+               product.name.toLowerCase().includes('purse');
+      }
+      // For other fashion accessories, return all fashion items
+      return true;
+    }
+    
+    if (primaryNeed === 'jewelry_watches') {
+      // For watches, prioritize actual watches
+      if (affordances.some(aff => ['watch', 'timepiece', 'watches'].includes(aff))) {
+        return product.category === 'Watches' || 
+               (product.category === 'Jewelry' && 
+                (product.tags?.includes('watch') || product.name.toLowerCase().includes('watch')));
+      }
+      // For jewelry, return jewelry items
+      return product.category === 'Jewelry' || product.category === 'Watches';
+    }
+    
+    // For luxury queries, ensure high-end products
+    if (primaryNeed === 'luxury') {
+      return product.tags?.includes('luxury') || 
+             product.price > 1000 || 
+             ['Chanel', 'Hermès', 'Rolex', 'Cartier', 'Bulgari', 'La Mer', 'La Prairie'].includes(product.brand);
+    }
+    
+    // Filter by affordances for better matching
+    const affordanceMatch = affordances.some(affordance => 
+      product.affordances?.includes(affordance) ||
+      product.tags?.some(tag => tag.includes(affordance)) ||
+      product.benefits?.some(benefit => benefit.includes(affordance)) ||
+      product.name.toLowerCase().includes(affordance)
+    );
+    
+    return affordanceMatch;
   });
 }
 
-export function calculateBM25Score(product, query) {
-  const queryTerms = query.toLowerCase().split(/\s+/);
+export function calculateBM25Score(product, query, affordances = []) {
+  const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2);
   let score = 0;
   
-  // Score based on name match
-  const nameTerms = product.name.toLowerCase().split(/\s+/);
+  // Weighted search fields for better relevance
+  const searchFields = [
+    { text: product.name, weight: 3.0 },
+    { text: product.description, weight: 2.0 },
+    { text: product.category, weight: 2.5 },
+    { text: (product.tags || []).join(' '), weight: 1.5 },
+    { text: (product.benefits || []).join(' '), weight: 1.0 },
+    { text: (product.affordances || []).join(' '), weight: 2.0 },
+    { text: product.brand || '', weight: 1.5 }
+  ];
+  
+  // Calculate term frequency with field weights
   queryTerms.forEach(term => {
-    if (nameTerms.includes(term)) score += 2;
-    if (nameTerms.some(nameTerm => nameTerm.includes(term))) score += 1;
+    searchFields.forEach(field => {
+      const termCount = (field.text.toLowerCase().match(new RegExp(term, 'g')) || []).length;
+      if (termCount > 0) {
+        score += termCount * field.weight;
+      }
+    });
   });
   
-  // Score based on tags
-  if (product.tags) {
-    queryTerms.forEach(term => {
-      if (product.tags.includes(term)) score += 1.5;
-    });
+  // Boost score for exact affordance matches
+  affordances.forEach(affordance => {
+    if (product.affordances?.includes(affordance) || 
+        product.tags?.includes(affordance) ||
+        product.name.toLowerCase().includes(affordance)) {
+      score += 2.0;
+    }
+  });
+  
+  // Boost score for luxury products when luxury is mentioned
+  if (query.includes('luxury') && product.tags?.includes('luxury')) {
+    score += 1.5;
   }
   
-  // Score based on benefits
-  if (product.benefits) {
-    queryTerms.forEach(term => {
-      product.benefits.forEach(benefit => {
-        if (benefit.toLowerCase().includes(term)) score += 1;
-      });
-    });
-  }
-  
-  return score;
+  // Normalize score
+  return Math.min(score / 10, 1.0);
 }
 
 export function calculateBusinessScore(product) {

@@ -26,10 +26,12 @@ export default async function handler(req, res) {
     console.log('🔍 Generated enhanced RAG recommendations:', JSON.stringify(result, null, 2));
 
     if (!result.success) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        error: result.message,
-        recommendations: []
+        message: result.message,
+        recommendations: result.recommendations || [],
+        naturalResponse: result.naturalResponse || null,
+        metadata: result.metadata || null
       });
     }
 

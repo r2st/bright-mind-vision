@@ -56,6 +56,9 @@ export default function MainHeader() {
               <a href="/product/voice-wellness-partners" className={styles.dropdownLink} onClick={closeProduct}>
                 Wellness Partners
               </a>
+              <a href="/product/shopping-assistant" className={styles.dropdownLink} onClick={closeProduct}>
+                Shopping Assistant
+              </a>
             </div>
           </div>
           <a href="/projects" className={styles.navLink}>Projects</a>
@@ -97,6 +100,9 @@ export default function MainHeader() {
             </a>
             <a href="/product/voice-wellness-partners" className={styles.mobileNavLink} onClick={closeMenu}>
               Wellness Partners
+            </a>
+            <a href="/product/shopping-assistant" className={styles.mobileNavLink} onClick={closeMenu}>
+              Shopping Assistant
             </a>
           </div>
         </div>

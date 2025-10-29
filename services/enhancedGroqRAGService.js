@@ -28,6 +28,7 @@ export async function normalizeIntent(userQuery) {
           - If the message is just a single number like "1", "2", "3", etc. → return {"type": "quick_reply", "primaryNeed": "quick_reply", "number": 1, "confidence": 0.9}
           - If the message is just "hi", "hello", "hey", "good morning", etc. → return {"type": "greeting", "primaryNeed": "greeting", "confidence": 0.9}
           - If the message is asking for help like "help", "what can you do", "how does this work" → return {"type": "help", "primaryNeed": "help", "confidence": 0.9}
+          - If the message is about non-product categories (cars, houses, food, travel, etc.) → return {"type": "non_product", "primaryNeed": "non_product", "confidence": 0.9}
           - If the message contains "luxury" + product category (watches, bags, etc.), prioritize the product category
           - If the message is a product request, continue with normal classification
           
@@ -97,18 +98,28 @@ export function retrieveProducts(intent, userQuery) {
     filters.maxPrice = 500;
   }
   
-  // Filter products
-  let candidates = filterProducts(enhancedProducts, primaryNeed, affordances);
+  console.log(`🔍 Retrieving products for: ${primaryNeed} with affordances: ${affordances.join(', ')}`);
   
-  // Calculate scores
+  // Filter products using enhanced filtering
+  let candidates = filterProducts(enhancedProducts, primaryNeed, affordances);
+  console.log(`📦 Found ${candidates.length} candidates after filtering`);
+  
+  if (candidates.length === 0) {
+    console.log('❌ No candidates found, trying broader search');
+    // Fallback to broader search
+    candidates = enhancedProducts.filter(product => 
+      product.tags?.some(tag => affordances.some(aff => tag.includes(aff))) ||
+      product.name.toLowerCase().includes(userQuery.toLowerCase().split(' ')[0])
+    );
+  }
+  
+  // Calculate enhanced scores
   const scoredCandidates = candidates.map(product => {
     const bm25Score = calculateBM25Score(product, userQuery, affordances);
     const businessScore = calculateBusinessScore(product);
     
-    // Combined score
-    const combinedScore = 
-      GROQ_CONFIG.rag.bm25Weight * bm25Score +
-      GROQ_CONFIG.rag.businessWeight * businessScore;
+    // Enhanced combined scoring
+    const combinedScore = (bm25Score * 0.5) + (businessScore * 0.3) + (product.rating / 5 * 0.2);
     
     return {
       ...product,
@@ -119,9 +130,10 @@ export function retrieveProducts(intent, userQuery) {
   });
   
   // Sort by combined score and return top candidates
-  return scoredCandidates
-    .sort((a, b) => b.combinedScore - a.combinedScore)
-    .slice(0, GROQ_CONFIG.rag.maxCandidates);
+  const sortedCandidates = scoredCandidates.sort((a, b) => b.combinedScore - a.combinedScore);
+  console.log(`🎯 Top 3 candidates: ${sortedCandidates.slice(0, 3).map(p => `${p.name} (${p.combinedScore.toFixed(2)})`).join(', ')}`);
+  
+  return sortedCandidates.slice(0, GROQ_CONFIG.rag.maxCandidates);
 }
 
 // Product Curator - LLM selects final recommendations
@@ -250,23 +262,50 @@ export async function getGroqRecommendationsWithNaturalResponse(userQuery, custo
   try {
     console.log('🔍 Starting enhanced RAG pipeline for:', userQuery);
     
-    // Step 1: Intent Normalization
-    const intent = await normalizeIntent(userQuery);
-    console.log('📝 Intent normalized:', intent);
-    
-    // Handle quick replies, greetings and help requests
-    if (intent.type === 'quick_reply') {
+  // Step 1: Intent Normalization
+  const intent = await normalizeIntent(userQuery);
+  console.log('📝 Intent normalized:', intent);
+  
+  // Handle non-product queries
+  if (intent.primaryNeed === 'non_product') {
+    return {
+      success: false,
+      message: 'Query is not related to our product categories',
+      recommendations: [],
+      naturalResponse: {
+        opening: "I specialize in luxury fashion, skincare, wellness, and lifestyle products. While I don't have that category, I can help you find luxury accessories, watches, or other premium items.",
+        items: [],
+        cta: "What type of luxury personal products are you looking for?",
+        quick_replies: [
+          "Luxury bags",
+          "Premium watches", 
+          "Skincare products",
+          "Show me everything"
+        ]
+      },
+      metadata: {
+        intent,
+        type: 'non_product',
+        timestamp: new Date().toISOString()
+      }
+    };
+  }
+  
+  // Handle quick replies, greetings and help requests
+  if (intent.type === 'quick_reply') {
       const quickReplyActions = {
         1: 'fashion',
         2: 'brands', 
-        3: 'price'
+        3: 'price',
+        4: 'all'
       };
       
       const action = quickReplyActions[intent.number] || 'general';
       const actionMessages = {
-        'fashion': 'Show me all fashion products including bags, accessories, and luxury items',
+        'fashion': 'Show me luxury fashion products including bags, handbags, and accessories',
         'brands': 'Show me products from luxury brands like Chanel, Hermès, Gucci, Louis Vuitton, Rolex, and La Mer',
         'price': 'Show me luxury products at different price ranges',
+        'all': 'Show me all luxury products across all categories',
         'general': 'Show me luxury products'
       };
       
@@ -327,22 +366,29 @@ export async function getGroqRecommendationsWithNaturalResponse(userQuery, custo
       };
     }
     
-    // Step 2: Product Retrieval
-    const candidates = retrieveProducts(intent, userQuery);
-    console.log(`🎯 Retrieved ${candidates.length} candidates`);
-    
-    if (candidates.length === 0) {
-      return {
-        success: false,
-        message: 'No products found matching your criteria',
-        recommendations: [],
-        naturalResponse: null
-      };
-    }
-    
-    // Step 3: Product Curation
-    const curation = await curateProducts(candidates, userQuery, intent);
-    console.log('🎨 Products curated:', curation.selectedProducts.length);
+  // Step 2: Product Retrieval
+  const candidates = retrieveProducts(intent, userQuery);
+  console.log(`🎯 Retrieved ${candidates.length} candidates`);
+  
+  if (candidates.length === 0) {
+    return {
+      success: false,
+      message: 'No products found matching your criteria',
+      recommendations: [],
+      naturalResponse: null
+    };
+  }
+  
+  // Step 3: Product Curation with improved model selection
+  const scoreSpread = Math.max(...candidates.map(c => c.combinedScore)) - Math.min(...candidates.map(c => c.combinedScore));
+  const models = pickModels({ 
+    needComplexity: intent.primaryNeed === 'luxury' ? 'high' : 'medium', 
+    scoreSpread,
+    queryLength: userQuery.length
+  });
+  
+  const curation = await curateProducts(candidates, userQuery, intent, models);
+  console.log('🎨 Products curated:', curation.selectedProducts.length);
     
     // Step 4: Safety Check
     const safety = await safetyCheck(curation.selectedProducts);
@@ -384,9 +430,15 @@ export async function getGroqRecommendationsWithNaturalResponse(userQuery, custo
     const intentForTemplates = detectIntentForTemplates(userQuery);
     
     console.log('💬 Generating natural response...');
+    
+    // Filter out invalid products before generating natural response
+    const validRecommendations = recommendations.filter(r => 
+      r.product && r.product.price && r.product.price > 0 && r.product.name
+    );
+    
     const naturalResponse = await generateNaturalResponse({
       userQuery,
-      picks: recommendations,
+      picks: validRecommendations,
       style,
       intent: intentForTemplates
     });
