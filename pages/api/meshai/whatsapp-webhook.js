@@ -375,7 +375,7 @@ async function storeMessage(messageData) {
   // In production, save to your database
 }
 
-// Trigger Production AI recommendation
+// Trigger Production AI recommendation - Direct implementation
 async function triggerProductionRecommendation(messageData) {
   try {
     console.log('🎯 Triggering production AI recommendation for:', messageData.from);
@@ -389,24 +389,108 @@ async function triggerProductionRecommendation(messageData) {
       console.log(`📱 Quick reply detected: ${quickReply} -> ${query}`);
     }
     
-    const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/meshai/working-production-recommendation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        message: query,
-        quickReply: !!quickReply
-      }),
-    });
+    // Import the normalized catalog directly
+    const { normalizedProductCatalog } = await import('../../../data/normalizedProductCatalog.js');
     
-    if (!response.ok) {
-      throw new Error(`Production API error: ${response.status}`);
+    if (!normalizedProductCatalog || !Array.isArray(normalizedProductCatalog)) {
+      throw new Error('Product catalog not available');
     }
     
-    const result = await response.json();
-    console.log('📊 Production API result:', result.success ? 'Success' : 'Failed');
+    // Simple product filtering based on query
+    let filteredProducts = normalizedProductCatalog;
     
-    if (result.success && result.naturalResponse) {
-      const formattedMessage = result.formattedMessage || formatProductionResponse(result.naturalResponse);
+    // Quick reply handling
+    if (quickReply || /^[1-4]$/.test(message)) {
+      const quickReplyNumber = parseInt(message);
+      console.log(`📱 Quick reply detected: ${quickReplyNumber}`);
+      
+      const mappings = {
+        1: { category: "Fashion", subcategory: "Bags", query: "luxury handbags" },
+        2: { category: "Skincare", query: "luxury skincare" },
+        3: { category: "Wellness", query: "wellness relaxation" },
+        4: { query: "luxury products" }
+      };
+      
+      const mapping = mappings[quickReplyNumber];
+      if (mapping) {
+        console.log(`🎯 Mapping:`, mapping);
+        if (mapping.category) {
+          filteredProducts = normalizedProductCatalog.filter(product => {
+            // For bags, look for products that have both "Fashion" and "Bags" in categories
+            if (mapping.subcategory) {
+              return product.category.some(cat => cat.toLowerCase().includes(mapping.category.toLowerCase())) &&
+                     product.category.some(cat => cat.toLowerCase().includes(mapping.subcategory.toLowerCase()));
+            } else {
+              return product.category.some(cat => cat.toLowerCase().includes(mapping.category.toLowerCase()));
+            }
+          });
+          console.log(`🔍 Filtered products for ${mapping.category}: ${filteredProducts.length}`);
+        }
+      }
+    } else {
+      // Text-based filtering
+      const queryLower = message.toLowerCase();
+      
+      if (queryLower.includes('bags') || queryLower.includes('handbags')) {
+        filteredProducts = normalizedProductCatalog.filter(product => 
+          product.category.some(cat => cat.toLowerCase().includes('bags')) ||
+          product.subcategory && product.subcategory.toLowerCase().includes('handbags')
+        );
+      } else if (queryLower.includes('skincare') || queryLower.includes('beauty')) {
+        filteredProducts = normalizedProductCatalog.filter(product => 
+          product.category.some(cat => cat.toLowerCase().includes('skincare'))
+        );
+      } else if (queryLower.includes('wellness') || queryLower.includes('spa')) {
+        filteredProducts = normalizedProductCatalog.filter(product => 
+          product.category.some(cat => cat.toLowerCase().includes('wellness'))
+        );
+      } else if (queryLower.includes('watches')) {
+        filteredProducts = normalizedProductCatalog.filter(product => 
+          product.category.some(cat => cat.toLowerCase().includes('watches'))
+        );
+      } else if (queryLower.includes('jewelry')) {
+        filteredProducts = normalizedProductCatalog.filter(product => 
+          product.category.some(cat => cat.toLowerCase().includes('jewelry'))
+        );
+      }
+    }
+    
+    // Take top 3 products
+    const topProducts = filteredProducts.slice(0, 3);
+    
+    // Generate response
+    const response = {
+      success: true,
+      naturalResponse: {
+        opening: generateOpening(message, topProducts.length),
+        items: topProducts.map(product => ({
+          id: product.sku,
+          headline: product.title,
+          one_liner: `${product.description.substring(0, 60)}... - ${product.price.amount} ${product.price.currency}`,
+          price: `${product.price.amount} ${product.price.currency}`,
+          brand: product.brand,
+          category: product.category[0],
+          sku: product.sku,
+          rating: product.rating,
+          badges: product.badges.slice(0, 2),
+          image: product.images[0] || "🛍️"
+        })),
+        cta: "Which product interests you most?",
+        quick_replies: generateQuickReplies(message, topProducts),
+        metadata: {
+          totalProducts: filteredProducts.length,
+          displayedProducts: topProducts.length,
+          region: "UAE",
+          currency: "AED",
+          timestamp: new Date().toISOString()
+        }
+      }
+    };
+
+    console.log('✅ Generated response with', topProducts.length, 'products');
+    
+    if (response.success && response.naturalResponse) {
+      const formattedMessage = formatProductionResponse(response.naturalResponse);
       await sendWhatsAppMessage(messageData.from, formattedMessage);
     } else {
       await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
@@ -415,6 +499,76 @@ async function triggerProductionRecommendation(messageData) {
   } catch (error) {
     console.error('❌ Production AI recommendation failed:', error);
     await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
+  }
+}
+
+// Helper functions for direct implementation
+function generateOpening(query, productCount) {
+  const queryLower = query.toLowerCase();
+  
+  if (queryLower.includes('hermes') || queryLower.includes('hermès')) {
+    return "Welcome to our Hermès collection! We have exquisite luxury pieces for you.";
+  } else if (queryLower.includes('gucci')) {
+    return "Discover our Gucci luxury collection! Here are some of our finest pieces.";
+  } else if (queryLower.includes('chanel')) {
+    return "Explore our Chanel collection! Timeless elegance awaits you.";
+  } else if (queryLower.includes('louis vuitton') || queryLower.includes('louis-vuitton')) {
+    return "Welcome to Louis Vuitton! Classic luxury and modern style combined.";
+  } else if (queryLower.includes('bags') || queryLower.includes('handbags')) {
+    return "Welcome to our luxury handbag collection! Here are our top picks for you.";
+  } else if (queryLower.includes('watches')) {
+    return "Discover our luxury timepieces! Precision meets elegance.";
+  } else if (queryLower.includes('jewelry')) {
+    return "Explore our luxury jewelry collection! Sparkling elegance awaits.";
+  } else if (queryLower.includes('skincare')) {
+    return "Welcome to our luxury skincare collection! Premium beauty products for you.";
+  } else if (queryLower.includes('wellness')) {
+    return "Discover our wellness collection! Luxury products for your well-being.";
+  } else {
+    return `Welcome to our luxury boutique! We found ${productCount} perfect products for you.`;
+  }
+}
+
+function generateQuickReplies(query, products) {
+  const queryLower = query.toLowerCase();
+  const brands = [...new Set(products.map(p => p.brand))];
+  
+  if (brands.length >= 2) {
+    return [
+      `View ${brands[0]} Collection`,
+      `Explore ${brands[1]} Products`,
+      "Show me everything"
+    ];
+  } else if (queryLower.includes('bags')) {
+    return [
+      "More luxury handbags",
+      "View accessories",
+      "Show me everything"
+    ];
+  } else if (queryLower.includes('watches')) {
+    return [
+      "More luxury watches",
+      "View jewelry",
+      "Show me everything"
+    ];
+  } else if (queryLower.includes('skincare')) {
+    return [
+      "More skincare products",
+      "View wellness items",
+      "Show me everything"
+    ];
+  } else if (queryLower.includes('jewelry')) {
+    return [
+      "More luxury jewelry",
+      "View watches",
+      "Show me everything"
+    ];
+  } else {
+    return [
+      "View more products",
+      "Get help",
+      "Contact us"
+    ];
   }
 }
 
