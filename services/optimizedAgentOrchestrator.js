@@ -20,11 +20,36 @@ class OptimizedAgentOrchestrator {
       // Step 2: Context Management
       const updatedContext = this.updateContext(query, context, intent);
 
-      // Step 3: Product Search
+      // Step 3: Handle non-product queries directly
+      if (intent === 'non_product') {
+        const response = {
+          opening: "I'm doing great, thank you for asking! 😊 I'm here to help you find luxury products. I can help you discover luxury handbags, watches, jewelry, skincare, and wellness items. What would you like to explore today?",
+          items: [],
+          cta: "Let me know what luxury products you're interested in!",
+          quick_replies: [
+            "Luxury handbags",
+            "Premium watches", 
+            "Fine jewelry"
+          ]
+        };
+        
+        return {
+          success: true,
+          naturalResponse: response,
+          metadata: {
+            intent,
+            context: updatedContext,
+            productsFound: 0,
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+
+      // Step 4: Product Search
       const products = await optimizedRAGService.searchProducts(query, updatedContext);
       console.log('🔍 Products found:', products.length);
 
-      // Step 4: Response Generation
+      // Step 5: Response Generation
       const response = await optimizedRAGService.generateResponse(query, products, updatedContext);
 
       return {
@@ -92,12 +117,27 @@ class OptimizedAgentOrchestrator {
   }
 
   isNonProductQuery(query) {
+    // First check if it's a product-related query (these should NOT be filtered out)
+    const productKeywords = [
+      'bag', 'handbag', 'watch', 'jewelry', 'skincare', 'skin', 'treatment', 'wellness',
+      'luxury', 'product', 'shop', 'buy', 'purchase', 'suggest', 'show', 'recommend',
+      'chanel', 'hermes', 'gucci', 'rolex', 'bulgari', 'la mer', 'sk-ii'
+    ];
+    
+    // If query contains product keywords, it's NOT a non-product query
+    if (productKeywords.some(keyword => query.toLowerCase().includes(keyword))) {
+      return false;
+    }
+    
+    // Now check for actual non-product queries
     const nonProductKeywords = [
       'weather', 'time', 'date', 'news', 'sports', 'politics',
       'car', 'house', 'food', 'restaurant', 'hotel', 'travel',
-      'hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye'
+      'hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye',
+      'how are you', 'how are you doing', 'what\'s up', 'whats up',
+      'good morning', 'good afternoon', 'good evening', 'good night'
     ];
-    return nonProductKeywords.some(keyword => query.includes(keyword));
+    return nonProductKeywords.some(keyword => query.toLowerCase().includes(keyword));
   }
 
   isBrandQuery(query) {
@@ -157,13 +197,16 @@ class OptimizedAgentOrchestrator {
 
   async handleQuickReply(quickReplyNumber, context) {
     try {
+      // Define specific queries for each quick reply
       const quickReplyQueries = {
-        1: context.lastCategory ? `more ${context.lastCategory} products` : 'luxury handbags',
-        2: context.lastCategory ? 'related products' : 'luxury skincare',
-        3: context.lastCategory ? 'all luxury products' : 'wellness products'
+        1: 'luxury handbags', // Always handbags for quick reply 1
+        2: 'luxury watches',  // Always watches for quick reply 2
+        3: 'luxury jewelry'   // Always jewelry for quick reply 3
       };
 
       const query = quickReplyQueries[quickReplyNumber] || 'luxury products';
+      console.log(`🎯 Quick Reply ${quickReplyNumber}: "${query}"`);
+      
       return await this.processQuery(query, context);
     } catch (error) {
       console.error('Quick reply handler error:', error);

@@ -123,12 +123,13 @@ class OptimizedRAGService {
   async searchProducts(query, context = {}) {
     await this.initialize();
 
+    // Check for non-product queries first
+    if (this.isNonProductQuery(query.toLowerCase())) {
+      return [];
+    }
+
     const intent = await this.classifyIntent(query);
     console.log(`🎯 Intent: ${intent}`);
-
-    if (intent === 'non_product') {
-      return this.handleNonProductQuery(query);
-    }
 
     // Fast text-based search with category filtering
     let products = await this.fastTextSearch(query, context);
@@ -152,23 +153,78 @@ class OptimizedRAGService {
     const queryLower = query.toLowerCase();
     const allProducts = vectorDB.getAllProducts();
     
-    const scoredProducts = allProducts.map(product => {
+    // Determine target category from query
+    let targetCategory = null;
+    if (queryLower.includes('handbag') || queryLower.includes('bag')) {
+      targetCategory = 'handbags';
+    } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
+      targetCategory = 'watches';
+    } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery')) {
+      targetCategory = 'jewelry';
+    } else if (queryLower.includes('skincare') || queryLower.includes('skin') || queryLower.includes('treatment')) {
+      targetCategory = 'skincare';
+    } else if (queryLower.includes('wellness') || queryLower.includes('health')) {
+      targetCategory = 'wellness';
+    }
+    
+    // First filter by category if we have a target category
+    let filteredProducts = allProducts;
+    if (targetCategory) {
+      filteredProducts = allProducts.filter(product => {
+        const productCategories = JSON.parse(product.category).join(' ').toLowerCase();
+        const title = product.title.toLowerCase();
+        
+        // Strict category matching
+        if (targetCategory === 'handbags') {
+          return productCategories.includes('fashion') && (productCategories.includes('bag') || title.includes('bag') || title.includes('handbag'));
+        } else if (targetCategory === 'watches') {
+          return productCategories.includes('watch') || title.includes('watch') || title.includes('timepiece');
+        } else if (targetCategory === 'jewelry') {
+          return productCategories.includes('jewelry');
+        } else if (targetCategory === 'skincare') {
+          return productCategories.includes('skincare') || title.includes('skin') || title.includes('treatment');
+        } else if (targetCategory === 'wellness') {
+          return productCategories.includes('wellness');
+        }
+        return false;
+      });
+    }
+    
+    // If no products found with strict filtering, fall back to broader search
+    if (filteredProducts.length === 0) {
+      filteredProducts = allProducts;
+    }
+    
+    // Score the filtered products
+    const scoredProducts = filteredProducts.map(product => {
       let score = 0;
       const title = product.title.toLowerCase();
       const brand = product.brand.toLowerCase();
       const category = JSON.parse(product.category).join(' ').toLowerCase();
       const description = (product.description || '').toLowerCase();
       
-      // Title match gets highest score
+      // Category-specific scoring (higher weight for matching categories)
+      if (targetCategory === 'handbags') {
+        if (category.includes('fashion') && (category.includes('bag') || title.includes('bag'))) score += 20;
+        if (title.includes('bag') || title.includes('handbag')) score += 15;
+      } else if (targetCategory === 'watches') {
+        if (category.includes('watch')) score += 20;
+        if (title.includes('watch') || title.includes('timepiece')) score += 15;
+      } else if (targetCategory === 'jewelry') {
+        if (category.includes('jewelry')) score += 20;
+        if (title.includes('jewelry') || title.includes('jewellery')) score += 15;
+      } else if (targetCategory === 'skincare') {
+        if (category.includes('skincare')) score += 20;
+        if (title.includes('skincare') || title.includes('skin') || title.includes('treatment')) score += 15;
+      } else if (targetCategory === 'wellness') {
+        if (category.includes('wellness')) score += 20;
+        if (title.includes('wellness') || title.includes('health')) score += 15;
+      }
+      
+      // General matching
       if (title.includes(queryLower)) score += 10;
-      
-      // Brand match
       if (brand.includes(queryLower)) score += 8;
-      
-      // Category match
       if (category.includes(queryLower)) score += 6;
-      
-      // Description match
       if (description.includes(queryLower)) score += 4;
       
       // Word-by-word matching
@@ -242,9 +298,9 @@ class OptimizedRAGService {
   async generateResponse(query, products, context = {}) {
     try {
       // Handle non-product queries
-      if (Array.isArray(products) && products.length === 0 && this.isNonProductQuery(query.toLowerCase())) {
+      if (this.isNonProductQuery(query.toLowerCase())) {
         return {
-          opening: "I'm a luxury shopping assistant focused on helping you find premium products. I can help you discover luxury handbags, watches, jewelry, skincare, and wellness items. What would you like to explore?",
+          opening: "I'm doing great, thank you for asking! 😊 I'm here to help you find luxury products. I can help you discover luxury handbags, watches, jewelry, skincare, and wellness items. What would you like to explore today?",
           items: [],
           cta: "Let me know what luxury products you're interested in!",
           quick_replies: [
@@ -292,7 +348,16 @@ class OptimizedRAGService {
     if (context.lastCategory) {
       return `Here are some ${context.lastCategory} products for you:`;
     } else if (category) {
-      return `Here are some luxury ${category} products I found for you:`;
+      // Map category names to user-friendly names
+      const categoryMap = {
+        'handbags': 'luxury handbags',
+        'watches': 'luxury watches',
+        'jewelry': 'fine jewelry',
+        'skincare': 'luxury skincare',
+        'wellness': 'wellness'
+      };
+      const friendlyCategory = categoryMap[category] || category;
+      return `Here are some ${friendlyCategory} products I found for you:`;
     } else {
       return "Here are some luxury products I found for you:";
     }
@@ -325,15 +390,58 @@ class OptimizedRAGService {
   detectCategory(products) {
     if (products.length === 0) return null;
     
-    const categories = products.map(p => JSON.parse(p.category)[0]);
-    const categoryCount = {};
-    categories.forEach(cat => {
-      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    // Count products by category
+    const categoryScores = {};
+    
+    products.forEach(product => {
+      const productCategories = JSON.parse(product.category);
+      productCategories.forEach(cat => {
+        const catLower = cat.toLowerCase();
+        
+        // Map to normalized categories
+        if (catLower.includes('fashion') || catLower.includes('bag')) {
+          categoryScores['handbags'] = (categoryScores['handbags'] || 0) + 1;
+        }
+        if (catLower.includes('watch')) {
+          categoryScores['watches'] = (categoryScores['watches'] || 0) + 1;
+        }
+        if (catLower.includes('jewelry')) {
+          categoryScores['jewelry'] = (categoryScores['jewelry'] || 0) + 1;
+        }
+        if (catLower.includes('skincare')) {
+          categoryScores['skincare'] = (categoryScores['skincare'] || 0) + 1;
+        }
+        if (catLower.includes('wellness')) {
+          categoryScores['wellness'] = (categoryScores['wellness'] || 0) + 1;
+        }
+      });
+      
+      // Also check title for bags
+      const title = product.title.toLowerCase();
+      if (title.includes('bag') || title.includes('handbag')) {
+        categoryScores['handbags'] = (categoryScores['handbags'] || 0) + 1;
+      }
+      if (title.includes('watch') || title.includes('timepiece')) {
+        categoryScores['watches'] = (categoryScores['watches'] || 0) + 1;
+      }
+      if (title.includes('jewelry') || title.includes('jewellery')) {
+        categoryScores['jewelry'] = (categoryScores['jewelry'] || 0) + 1;
+      }
+      if (title.includes('skincare') || title.includes('skin') || title.includes('treatment')) {
+        categoryScores['skincare'] = (categoryScores['skincare'] || 0) + 1;
+      }
     });
     
-    return Object.keys(categoryCount).reduce((a, b) => 
-      categoryCount[a] > categoryCount[b] ? a : b
+    // Return the category with the highest score
+    if (Object.keys(categoryScores).length === 0) {
+      return null;
+    }
+    
+    const topCategory = Object.keys(categoryScores).reduce((a, b) => 
+      categoryScores[a] > categoryScores[b] ? a : b
     );
+    
+    return topCategory || null;
   }
 
   getCategoryEmoji(categoryArray) {
@@ -361,12 +469,27 @@ class OptimizedRAGService {
   }
 
   isNonProductQuery(query) {
+    // First check if it's a product-related query (these should NOT be filtered out)
+    const productKeywords = [
+      'bag', 'handbag', 'watch', 'jewelry', 'skincare', 'skin', 'treatment', 'wellness',
+      'luxury', 'product', 'shop', 'buy', 'purchase', 'suggest', 'show', 'recommend',
+      'chanel', 'hermes', 'gucci', 'rolex', 'bulgari', 'la mer', 'sk-ii'
+    ];
+    
+    // If query contains product keywords, it's NOT a non-product query
+    if (productKeywords.some(keyword => query.toLowerCase().includes(keyword))) {
+      return false;
+    }
+    
+    // Now check for actual non-product queries
     const nonProductKeywords = [
       'weather', 'time', 'date', 'news', 'sports', 'politics',
       'car', 'house', 'food', 'restaurant', 'hotel', 'travel',
-      'hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye'
+      'hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye',
+      'how are you', 'how are you doing', 'what\'s up', 'whats up',
+      'good morning', 'good afternoon', 'good evening', 'good night'
     ];
-    return nonProductKeywords.some(keyword => query.includes(keyword));
+    return nonProductKeywords.some(keyword => query.toLowerCase().includes(keyword));
   }
 }
 

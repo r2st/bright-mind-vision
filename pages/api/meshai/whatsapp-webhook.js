@@ -1,6 +1,6 @@
 // WhatsApp Business API Webhook Handler
 // Handles incoming messages and triggers AI product recommendations
-// Now using Advanced Multi-Agent System
+// Now using Groq LLM + RAG + Multi-Agent System
 
 export default async function handler(req, res) {
   console.log('🔍 WhatsApp webhook called with method:', req.method);
@@ -178,7 +178,7 @@ async function handleIncomingMessage(message, contact) {
     await sendTypingIndicator(messageData.from);
     
     // Trigger AI product recommendation using production API
-    await triggerProductionRecommendation(messageData);
+    await triggerAIIntegratedRecommendation(messageData);
 
     console.log('✅ Successfully processed WhatsApp message:', messageData.id);
   } catch (error) {
@@ -375,29 +375,36 @@ async function storeMessage(messageData) {
   // In production, save to your database
 }
 
-// Trigger Production AI recommendation - Direct implementation
-async function triggerProductionRecommendation(messageData) {
+// Trigger AI-Integrated recommendation using Groq LLM + RAG + Multi-Agent
+async function triggerAIIntegratedRecommendation(messageData) {
   try {
-    console.log('🎯 Triggering production AI recommendation for:', messageData.from);
+    console.log('🤖 Triggering AI-integrated recommendation for:', messageData.from);
     
     const message = messageData.text?.body || '';
     const quickReply = handleQuickReply(message);
     
-    let query = message;
+    // Use the optimized AI service
+    const { optimizedAgentOrchestrator } = await import('../../../services/optimizedAgentOrchestrator.js');
+    
+    let result;
     if (quickReply) {
-      query = getActionMessage(quickReply);
-      console.log(`📱 Quick reply detected: ${quickReply} -> ${query}`);
+      console.log(`📱 Quick reply detected: ${quickReply}`);
+      result = await optimizedAgentOrchestrator.handleQuickReply(quickReply, {});
+    } else {
+      console.log(`💬 Processing message: "${message}"`);
+      result = await optimizedAgentOrchestrator.processQuery(message, {});
     }
     
-    // Import the normalized catalog directly
-    const { normalizedProductCatalog } = await import('../../../data/normalizedProductCatalog.js');
-    
-    if (!normalizedProductCatalog || !Array.isArray(normalizedProductCatalog)) {
-      throw new Error('Product catalog not available');
+    if (!result.success) {
+      console.error('❌ AI recommendation failed:', result.error);
+      await sendErrorMessage(messageData.from);
+      return;
     }
     
-    // Simple product filtering based on query
-    let filteredProducts = normalizedProductCatalog;
+    console.log('✅ AI recommendation successful:', result.metadata);
+    
+    // Send the AI-generated response
+    await sendAIResponse(messageData.from, result.naturalResponse);
     
     // Quick reply handling
     if (quickReply || /^[1-4]$/.test(message)) {

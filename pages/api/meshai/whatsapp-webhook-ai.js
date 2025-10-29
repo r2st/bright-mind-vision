@@ -1,12 +1,8 @@
-// AI-Enhanced WhatsApp Business API Webhook Handler
-// Uses Groq LLM, RAG system, and Multi-Agent architecture
-
-import { optimizedAgentOrchestrator } from '../../../services/optimizedAgentOrchestrator.js';
+// WhatsApp Business API Webhook Handler with AI Integration
+// Uses Groq LLM + RAG + Multi-Agent System
 
 export default async function handler(req, res) {
   console.log('🤖 AI-Enhanced WhatsApp webhook called with method:', req.method);
-  console.log('🤖 Request headers:', req.headers);
-  console.log('🤖 Request body:', JSON.stringify(req.body, null, 2));
 
   // Handle webhook verification (GET request)
   if (req.method === 'GET') {
@@ -41,8 +37,6 @@ async function handleWebhookVerification(req, res) {
     return res.status(200).send(challenge);
   } else {
     console.log('❌ Webhook verification failed');
-    console.log('❌ Mode check:', mode === 'subscribe');
-    console.log('❌ Token check:', token === expectedToken);
     return res.status(403).json({ 
       error: 'Forbidden',
       details: {
@@ -123,9 +117,9 @@ async function processMessage(messageData) {
     
     if (isQuickReply(messageText)) {
       const quickReplyNumber = parseInt(messageText.trim());
-      result = await optimizedAgentOrchestrator.handleQuickReply(quickReplyNumber, {});
+      result = await processWithAI(quickReplyNumber, null, {});
     } else {
-      result = await optimizedAgentOrchestrator.processQuery(messageText, {});
+      result = await processWithAI(null, messageText, {});
     }
 
     // Send response
@@ -145,6 +139,31 @@ async function processMessage(messageData) {
 function isQuickReply(message) {
   const trimmed = message.trim();
   return /^[1-4]$/.test(trimmed);
+}
+
+// Process with AI system
+async function processWithAI(quickReply, message, context) {
+  try {
+    // Use the optimized AI service
+    const { optimizedAgentOrchestrator } = await import('../../../services/optimizedAgentOrchestrator.js');
+    
+    let result;
+    if (quickReply) {
+      console.log(`📱 Quick reply detected: ${quickReply}`);
+      result = await optimizedAgentOrchestrator.handleQuickReply(quickReply, context);
+    } else {
+      console.log(`💬 Processing message: "${message}"`);
+      result = await optimizedAgentOrchestrator.processQuery(message, context);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ AI processing failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 }
 
 // Send typing indicator
@@ -184,7 +203,7 @@ async function sendAIResponse(to, naturalResponse) {
     
     if (naturalResponse.items && naturalResponse.items.length > 0) {
       naturalResponse.items.forEach((item, index) => {
-        responseText += `${index + 1}. ${item.image || '🛍️'} ${item.headline} - ${item.price}\n`;
+        responseText += `${index + 1}. ${item.image || '🛍️'} *${item.headline}* - ${item.price}\n`;
         if (item.one_liner) {
           responseText += `   ${item.one_liner}\n`;
         }

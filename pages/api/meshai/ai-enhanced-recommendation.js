@@ -1,7 +1,7 @@
 // AI-Enhanced Recommendation API
 // Uses Groq LLM, RAG system, and Multi-Agent architecture
 
-import { aiAgentOrchestrator } from '../../../services/aiAgentOrchestrator.js';
+import { optimizedAgentOrchestrator } from '../../../services/optimizedAgentOrchestrator.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -23,10 +23,10 @@ export default async function handler(req, res) {
 
     if (quickReply) {
       // Handle quick reply with AI context
-      result = await aiAgentOrchestrator.handleQuickReply(quickReply, context || {});
+      result = await optimizedAgentOrchestrator.handleQuickReply(quickReply, context || {});
     } else {
       // Process natural language query with AI
-      result = await aiAgentOrchestrator.processQuery(message, context || {});
+      result = await optimizedAgentOrchestrator.processQuery(message, context || {});
     }
 
     // Add metadata
