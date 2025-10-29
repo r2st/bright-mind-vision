@@ -31,26 +31,63 @@ export default async function handler(req, res) {
       console.log(`📱 Quick reply detected: ${quickReplyNumber}`);
       
       const mappings = {
-        1: { category: "Fashion", subcategory: "Bags", query: "luxury handbags" },
-        2: { category: "Skincare", query: "luxury skincare" },
-        3: { category: "Wellness", query: "wellness relaxation" },
-        4: { query: "luxury products" }
+        1: { 
+          category: "Fashion", 
+          subcategory: "Bags", 
+          query: "luxury handbags",
+          brands: ["Chanel", "Hermès", "Louis Vuitton", "Gucci"]
+        },
+        2: { 
+          category: "Skincare", 
+          query: "luxury skincare",
+          brands: ["La Mer", "SK-II", "Chanel"]
+        },
+        3: { 
+          category: "Wellness", 
+          query: "wellness relaxation",
+          brands: ["Aromatherapy Associates", "Jo Malone", "This Works"]
+        },
+        4: { 
+          query: "luxury products",
+          brands: ["Chanel", "Hermès", "Louis Vuitton", "Rolex", "Bulgari"]
+        }
       };
       
       const mapping = mappings[quickReplyNumber];
       if (mapping) {
         console.log(`🎯 Mapping:`, mapping);
+        
         if (mapping.category) {
+          // Filter by category first
           filteredProducts = normalizedProductCatalog.filter(product => {
-            // For bags, look for products that have both "Fashion" and "Bags" in categories
             if (mapping.subcategory) {
+              // For bags, look for products that have both "Fashion" and "Bags" in categories
               return product.category.some(cat => cat.toLowerCase().includes(mapping.category.toLowerCase())) &&
                      product.category.some(cat => cat.toLowerCase().includes(mapping.subcategory.toLowerCase()));
             } else {
               return product.category.some(cat => cat.toLowerCase().includes(mapping.category.toLowerCase()));
             }
           });
+          
+          // If no products found by category, try by brand
+          if (filteredProducts.length === 0 && mapping.brands) {
+            console.log(`🔍 No products found by category, trying brands:`, mapping.brands);
+            filteredProducts = normalizedProductCatalog.filter(product => 
+              mapping.brands.some(brand => 
+                product.brand.toLowerCase().includes(brand.toLowerCase())
+              )
+            );
+          }
+          
           console.log(`🔍 Filtered products for ${mapping.category}: ${filteredProducts.length}`);
+        } else if (mapping.brands) {
+          // Filter by brands for "show everything"
+          filteredProducts = normalizedProductCatalog.filter(product => 
+            mapping.brands.some(brand => 
+              product.brand.toLowerCase().includes(brand.toLowerCase())
+            )
+          );
+          console.log(`🔍 Filtered products by brands: ${filteredProducts.length}`);
         }
       }
     } else {
@@ -84,15 +121,12 @@ export default async function handler(req, res) {
     // Take top 3 products
     const topProducts = filteredProducts.slice(0, 3);
     
-    // Pre-generate common responses for speed
-    const quickReplies = generateQuickReplies(message, topProducts);
-    const opening = generateOpening(message, topProducts.length);
-    
-    // Generate response
+    // Generate response with quick reply context
+    const quickReplyNumber = quickReply || (/^[1-4]$/.test(message) ? parseInt(message) : null);
     const response = {
       success: true,
       naturalResponse: {
-        opening,
+        opening: generateOpening(message, topProducts.length, quickReplyNumber),
         items: topProducts.map(product => ({
           id: product.sku,
           headline: product.title,
@@ -106,7 +140,7 @@ export default async function handler(req, res) {
           image: product.images[0] || "🛍️"
         })),
         cta: "Which product interests you most?",
-        quick_replies: quickReplies,
+        quick_replies: generateQuickReplies(message, topProducts, quickReplyNumber),
         metadata: {
           totalProducts: filteredProducts.length,
           displayedProducts: topProducts.length,
@@ -149,8 +183,19 @@ export default async function handler(req, res) {
 }
 
 // Helper functions
-function generateOpening(query, productCount) {
+function generateOpening(query, productCount, quickReplyNumber = null) {
   const queryLower = query.toLowerCase();
+  
+  // Handle quick replies first
+  if (quickReplyNumber) {
+    const quickReplyMessages = {
+      1: "Welcome to our luxury handbag collection! Here are our top picks for you.",
+      2: "Welcome to our luxury skincare collection! Premium beauty products for you.",
+      3: "Discover our wellness collection! Luxury products for your well-being.",
+      4: "Welcome to our luxury boutique! Here are our finest products across all categories."
+    };
+    return quickReplyMessages[quickReplyNumber] || `Welcome to our luxury boutique! We found ${productCount} perfect products for you.`;
+  }
   
   if (queryLower.includes('hermes') || queryLower.includes('hermès')) {
     return "Welcome to our Hermès collection! We have exquisite luxury pieces for you.";
@@ -175,9 +220,20 @@ function generateOpening(query, productCount) {
   }
 }
 
-function generateQuickReplies(query, products) {
+function generateQuickReplies(query, products, quickReplyNumber = null) {
   const queryLower = query.toLowerCase();
   const brands = [...new Set(products.map(p => p.brand))];
+  
+  // Handle quick replies first
+  if (quickReplyNumber) {
+    const quickReplyOptions = {
+      1: ["More luxury handbags", "View accessories", "Show me everything"],
+      2: ["More skincare products", "View wellness items", "Show me everything"],
+      3: ["More wellness products", "View spa items", "Show me everything"],
+      4: ["View more products", "Get help", "Contact us"]
+    };
+    return quickReplyOptions[quickReplyNumber] || ["View more products", "Get help", "Contact us"];
+  }
   
   if (brands.length >= 2) {
     return [
