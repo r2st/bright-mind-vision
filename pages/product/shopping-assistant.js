@@ -49,12 +49,13 @@ const EcommerceChatBot = () => {
     }
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+  const sendMessage = async (quickReplyNumber = null, quickReplyText = null) => {
+    const messageText = (quickReplyText && quickReplyText.trim()) || (quickReplyNumber ? quickReplyNumber.toString() : inputMessage.trim());
+    if (!messageText || isLoading) return;
 
     const userMessage = {
       id: Date.now(),
-      text: inputMessage,
+      text: messageText,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
@@ -72,13 +73,14 @@ const EcommerceChatBot = () => {
     }, 100);
 
     try {
-        const response = await fetch('/api/meshai/optimized-ai-recommendation', {
+        const response = await fetch('/api/meshai/langgraph-recommendation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: inputMessage,
+          // Send textual quick replies as normal messages to avoid numeric misrouting
+          ...(quickReplyText ? { message: messageText } : (quickReplyNumber ? { quickReply: quickReplyNumber } : { message: messageText })),
           customerId: `web-${Date.now()}`,
           context: {
             ...conversationContext,
@@ -168,12 +170,14 @@ const EcommerceChatBot = () => {
     }
   };
 
-  const handleQuickReplyClick = (quickReplyNumber) => {
-    setInputMessage(quickReplyNumber);
-    // Auto-send the quick reply
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
+  const handleQuickReplyClick = (quickReplyNumber, quickReplyText) => {
+    // Prefer sending the label text to keep replies contextual
+    if (quickReplyText) {
+      sendMessage(null, quickReplyText);
+      return;
+    }
+    // Fallback to numeric behavior if no text provided
+    sendMessage(quickReplyNumber);
   };
 
   return (
@@ -225,7 +229,7 @@ const EcommerceChatBot = () => {
                             <div key={index} className={styles.quickReplyContainer}>
                               <button 
                                 className={styles.quickReplyButton}
-                                onClick={() => handleQuickReplyClick(number)}
+                                onClick={() => handleQuickReplyClick(number, text)}
                               >
                                 {number}. {text}
                               </button>

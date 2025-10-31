@@ -196,10 +196,10 @@ function handleQuickReply(message) {
     
     // Map quick reply numbers to specific actions based on context
     const quickReplyActions = {
-      1: "luxury-bags",     // Luxury bags
-      2: "skincare",        // Skincare products
-      3: "wellness",        // Wellness items
-      4: "all-products"     // Show me everything
+      1: "handbags",     // Align with web: 1 → handbags
+      2: "watches",      // 2 → watches
+      3: "jewelry",      // 3 → jewelry
+      4: "all-products"  // 4 → all products
     };
     
     return quickReplyActions[number] || null;
@@ -207,12 +207,11 @@ function handleQuickReply(message) {
   
   // Check for common quick reply phrases
   const quickReplyPhrases = {
-    'view all fashion': "fashion",
-    'explore handbags': "handbags",
-    'discover luxury brands': "brands",
-    'more options': "more",
-    'fashion collection': "fashion",
-    'back to home': "home"
+    'view all products': "all-products",
+    'show me handbags': "handbags",
+    'browse watches': "watches",
+    'explore jewelry': "jewelry",
+    'get help': "help"
   };
   
   const lowerMessage = trimmedMessage.toLowerCase();
@@ -230,9 +229,9 @@ async function handleQuickReplyAction(action, from) {
   try {
     console.log('🎯 Handling quick reply action:', action);
     
-    // Call the Simplified Advanced Multi-Agent API with the specific action
+    // Use LangGraph endpoint; send action as a descriptive message to avoid numeric misrouting
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/meshai/simplified-advanced-recommendation`, {
+    const response = await fetch(`${baseUrl}/api/meshai/langgraph-recommendation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -256,11 +255,10 @@ async function handleQuickReplyAction(action, from) {
     console.log('🎯 Quick reply result:', JSON.stringify(result, null, 2));
     
     if (result.success && result.naturalResponse) {
-      // Format and send the natural response
-      const naturalMessage = formatNaturalResponseForWhatsApp(result);
-      await sendWhatsAppMessage(from, naturalMessage);
+      const { naturalResponse } = result;
+      const formatted = formatProductionResponse(naturalResponse);
+      await sendWhatsAppMessage(from, formatted);
     } else {
-      // Fallback response
       const fallbackMessage = getFallbackMessage(action);
       await sendWhatsAppMessage(from, fallbackMessage);
     }
@@ -275,9 +273,11 @@ async function handleQuickReplyAction(action, from) {
 // Get action-specific message for RAG
 function getActionMessage(action) {
   const actionMessages = {
-    'luxury-bags': 'Show me luxury handbags and bags from top brands like Chanel, Hermès, Louis Vuitton, and Gucci',
-    'skincare': 'Show me luxury skincare products from brands like La Mer, SK-II, and other premium beauty brands',
-    'wellness': 'Show me luxury wellness products including spa items, relaxation products, and wellness accessories',
+    'handbags': 'Show me luxury handbags',
+    'watches': 'Show me luxury watches',
+    'jewelry': 'Show me luxury jewelry',
+    'skincare': 'Show me luxury skincare products',
+    'wellness': 'Show me wellness products',
     'all-products': 'Show me all luxury products across all categories including fashion, watches, jewelry, skincare, and wellness',
     'louis-vuitton': 'Show me Louis Vuitton products including bags, accessories, and luxury items',
     'chanel': 'Show me Chanel products including handbags, accessories, and luxury items',
@@ -382,18 +382,33 @@ async function triggerAIIntegratedRecommendation(messageData) {
     
     const message = messageData.text?.body || '';
     const quickReply = handleQuickReply(message);
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     
-    // Use the optimized AI service
-    const { optimizedAgentOrchestrator } = await import('../../../services/optimizedAgentOrchestrator.js');
+    const payload = quickReply
+      ? { message: getActionMessage(quickReply) }
+      : { message };
     
-    let result;
-    if (quickReply) {
-      console.log(`📱 Quick reply detected: ${quickReply}`);
-      result = await optimizedAgentOrchestrator.handleQuickReply(quickReply, {});
-    } else {
-      console.log(`💬 Processing message: "${message}"`);
-      result = await optimizedAgentOrchestrator.processQuery(message, {});
+    const response = await fetch(`${baseUrl}/api/meshai/langgraph-recommendation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...payload,
+        customerId: `whatsapp-${messageData.from}`,
+        context: {
+          source: 'whatsapp',
+          conversationId: `wa_${messageData.from}`,
+          timestamp: new Date().toISOString()
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`LangGraph API error: ${response.statusText}`);
     }
+    
+    const result = await response.json();
     
     if (!result.success) {
       console.error('❌ AI recommendation failed:', result.error);
@@ -401,10 +416,13 @@ async function triggerAIIntegratedRecommendation(messageData) {
       return;
     }
     
-    console.log('✅ AI recommendation successful:', result.metadata);
-    
-    // Send the AI-generated response
-    await sendAIResponse(messageData.from, result.naturalResponse);
+    // Send the AI-generated response (naturalResponse)
+    if (result.naturalResponse) {
+      const formatted = formatProductionResponse(result.naturalResponse);
+      await sendWhatsAppMessage(messageData.from, formatted);
+    } else {
+      await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
+    }
     
     // Quick reply handling
     if (quickReply || /^[1-4]$/.test(message)) {

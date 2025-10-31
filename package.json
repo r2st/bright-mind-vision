@@ -9,6 +9,7 @@
     "export": "next build && next export"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@netlify/plugin-nextjs": "^5.14.3",
     "@sqlite.org/sqlite-wasm": "^3.50.4-build1",
     "@vapi-ai/web": "^2.3.10",

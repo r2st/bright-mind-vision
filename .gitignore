@@ -36,6 +36,7 @@ tools
 calendar-test
 certificates
 test
+bck
 
 # Test files with secrets
 test-*.js
