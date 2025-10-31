@@ -30,6 +30,11 @@ class SQLiteVectorDB {
   }
 
   createTables() {
+    if (!this.db) {
+      console.error('❌ Cannot create tables: Database not initialized');
+      return;
+    }
+
     // Products table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS products (
@@ -73,13 +78,18 @@ class SQLiteVectorDB {
 
   // Insert or update product
   upsertProduct(product) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO products 
-      (sku, title, brand, category, subcategory, price, currency, description, tags, rating, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `);
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, skipping product upsert');
+      return null;
+    }
 
     try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO products 
+        (sku, title, brand, category, subcategory, price, currency, description, tags, rating, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `);
+
       const result = stmt.run(
         product.sku,
         product.title,
@@ -101,13 +111,18 @@ class SQLiteVectorDB {
 
   // Store embedding for a product
   storeEmbedding(productId, embeddingType, embedding) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO embeddings 
-      (product_id, embedding_type, embedding)
-      VALUES (?, ?, ?)
-    `);
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, skipping embedding storage');
+      return false;
+    }
 
     try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO embeddings 
+        (product_id, embedding_type, embedding)
+        VALUES (?, ?, ?)
+      `);
+
       stmt.run(productId, embeddingType, JSON.stringify(embedding));
       return true;
     } catch (error) {
@@ -118,68 +133,147 @@ class SQLiteVectorDB {
 
   // Get all products
   getAllProducts() {
-    const stmt = this.db.prepare(`
-      SELECT * FROM products ORDER BY updated_at DESC
-    `);
-    return stmt.all();
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning empty array');
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM products ORDER BY updated_at DESC
+      `);
+      return stmt.all();
+    } catch (error) {
+      console.error('Error getting all products:', error);
+      return [];
+    }
   }
 
   // Get product by SKU
   getProductBySku(sku) {
-    const stmt = this.db.prepare(`
-      SELECT * FROM products WHERE sku = ?
-    `);
-    return stmt.get(sku);
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning null');
+      return null;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM products WHERE sku = ?
+      `);
+      return stmt.get(sku);
+    } catch (error) {
+      console.error('Error getting product by SKU:', error);
+      return null;
+    }
   }
 
   // Get products by category
   getProductsByCategory(category) {
-    const stmt = this.db.prepare(`
-      SELECT * FROM products WHERE category LIKE ? ORDER BY rating DESC
-    `);
-    return stmt.all(`%${category}%`);
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning empty array');
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM products WHERE category LIKE ? ORDER BY rating DESC
+      `);
+      return stmt.all(`%${category}%`);
+    } catch (error) {
+      console.error('Error getting products by category:', error);
+      return [];
+    }
   }
 
   // Get embeddings for a product
   getEmbeddings(productId) {
-    const stmt = this.db.prepare(`
-      SELECT embedding_type, embedding FROM embeddings WHERE product_id = ?
-    `);
-    const results = stmt.all(productId);
-    return results.map(row => ({
-      type: row.embedding_type,
-      embedding: JSON.parse(row.embedding)
-    }));
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning empty array');
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT embedding_type, embedding FROM embeddings WHERE product_id = ?
+      `);
+      const results = stmt.all(productId);
+      return results.map(row => ({
+        type: row.embedding_type,
+        embedding: JSON.parse(row.embedding)
+      }));
+    } catch (error) {
+      console.error('Error getting embeddings:', error);
+      return [];
+    }
   }
 
   // Search products by text (simple LIKE search)
   searchProducts(query) {
-    const stmt = this.db.prepare(`
-      SELECT * FROM products 
-      WHERE title LIKE ? OR description LIKE ? OR tags LIKE ?
-      ORDER BY rating DESC
-    `);
-    const searchTerm = `%${query}%`;
-    return stmt.all(searchTerm, searchTerm, searchTerm);
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning empty array');
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM products 
+        WHERE title LIKE ? OR description LIKE ? OR tags LIKE ?
+        ORDER BY rating DESC
+      `);
+      const searchTerm = `%${query}%`;
+      return stmt.all(searchTerm, searchTerm, searchTerm);
+    } catch (error) {
+      console.error('Error searching products:', error);
+      return [];
+    }
   }
 
   // Get product count
   getProductCount() {
-    const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM products`);
-    return stmt.get().count;
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning 0');
+      return 0;
+    }
+
+    try {
+      const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM products`);
+      return stmt.get().count;
+    } catch (error) {
+      console.error('Error getting product count:', error);
+      return 0;
+    }
   }
 
   // Get embedding count
   getEmbeddingCount() {
-    const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM embeddings`);
-    return stmt.get().count;
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, returning 0');
+      return 0;
+    }
+
+    try {
+      const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM embeddings`);
+      return stmt.get().count;
+    } catch (error) {
+      console.error('Error getting embedding count:', error);
+      return 0;
+    }
   }
 
   // Clear all data
   clearAll() {
-    this.db.exec(`DELETE FROM embeddings`);
-    this.db.exec(`DELETE FROM products`);
-    console.log('🗑️ All data cleared from vector database');
+    if (!this.db) {
+      console.warn('⚠️ VectorDB: Database not initialized, cannot clear');
+      return;
+    }
+
+    try {
+      this.db.exec(`DELETE FROM embeddings`);
+      this.db.exec(`DELETE FROM products`);
+      console.log('🗑️ All data cleared from vector database');
+    } catch (error) {
+      console.error('Error clearing database:', error);
+    }
   }
 
   // Close database connection
