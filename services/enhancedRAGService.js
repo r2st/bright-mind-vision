@@ -194,6 +194,12 @@ class EnhancedRAGService {
   async searchProducts(query, context = {}) {
     await this.initialize();
 
+    // Performance optimization: Skip intent classification if we have explicit category context
+    if (context.lastCategory && context.skipIntentClassification) {
+      const products = await this.strictCategorySearch(context.lastCategory, context);
+      return products.slice(0, 5);
+    }
+
     const intent = await this.classifyIntent(query);
     console.log(`🎯 Intent classified as: ${intent}`);
 
@@ -248,18 +254,22 @@ class EnhancedRAGService {
     const allProducts = vectorDB.getAllProducts();
     const debug = process.env.DEBUG_RAG === 'true';
     
-    // Determine target category from query
-    let targetCategory = null;
-    if (queryLower.includes('handbag') || queryLower.includes('bag') || queryLower.includes('purse') || queryLower.includes('tote') || queryLower.includes('clutch') || queryLower.includes('crossbody') || queryLower.includes('satchel')) {
-      targetCategory = 'handbags';
-    } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
-      targetCategory = 'watches';
-    } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery') || queryLower.includes('necklace') || queryLower.includes('ring') || queryLower.includes('bracelet') || queryLower.includes('earring') || queryLower.includes('earrings')) {
-      targetCategory = 'jewelry';
-    } else if (queryLower.includes('skincare') || queryLower.includes('skin') || queryLower.includes('treatment') || queryLower.includes('serum') || queryLower.includes('essence') || queryLower.includes('moisturizer') || queryLower.includes('cream')) {
-      targetCategory = 'skincare';
-    } else if (queryLower.includes('wellness') || queryLower.includes('health') || queryLower.includes('spa') || queryLower.includes('relaxation')) {
-      targetCategory = 'wellness';
+    // Priority: Use explicit category from context if provided (performance optimization)
+    let targetCategory = context?.lastCategory || null;
+    
+    // Fallback: Determine target category from query if not in context
+    if (!targetCategory) {
+      if (queryLower.includes('handbag') || queryLower.includes('bag') || queryLower.includes('purse') || queryLower.includes('tote') || queryLower.includes('clutch') || queryLower.includes('crossbody') || queryLower.includes('satchel')) {
+        targetCategory = 'handbags';
+      } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
+        targetCategory = 'watches';
+      } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery') || queryLower.includes('necklace') || queryLower.includes('ring') || queryLower.includes('bracelet') || queryLower.includes('earring') || queryLower.includes('earrings')) {
+        targetCategory = 'jewelry';
+      } else if (queryLower.includes('skincare') || queryLower.includes('skin') || queryLower.includes('treatment') || queryLower.includes('serum') || queryLower.includes('essence') || queryLower.includes('moisturizer') || queryLower.includes('cream')) {
+        targetCategory = 'skincare';
+      } else if (queryLower.includes('wellness') || queryLower.includes('health') || queryLower.includes('spa') || queryLower.includes('relaxation')) {
+        targetCategory = 'wellness';
+      }
     }
     if (debug) console.log('[RAG] strictCategorySearch', { query, targetCategory, all: allProducts?.length });
     

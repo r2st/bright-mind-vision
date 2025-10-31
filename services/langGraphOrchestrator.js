@@ -528,7 +528,7 @@ class LangGraphOrchestrator {
     // Add current message
     memoryService.storeMessage(conversationId, 'user', query);
     
-    // Handle "Show me more" with category context
+    // Handle special quick reply queries
     const queryLower = query.toLowerCase().trim();
     if (queryLower === 'show me more' || queryLower.includes('more')) {
       // Retrieve last category from memory
@@ -536,6 +536,38 @@ class LangGraphOrchestrator {
       if (context.lastCategory) {
         query = context.lastCategory; // Use last category for "more"
       }
+    } else if (queryLower === 'different category' || queryLower.includes('different category')) {
+      // Show category selection options
+      return {
+        success: true,
+        naturalResponse: {
+          opening: "Great! What category would you like to explore?",
+          items: [],
+          cta: "Choose a category to browse:",
+          quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "Skincare products", "Wellness items", "View all products"]
+        },
+        metadata: {
+          intent: 'category_selection',
+          conversationId,
+          timestamp: new Date().toISOString()
+        }
+      };
+    } else if (queryLower === 'get help' || (queryLower.includes('help') && !queryLower.includes('find'))) {
+      // Show help options
+      return {
+        success: true,
+        naturalResponse: {
+          opening: "I'm here to help you find the perfect luxury products! How can I assist you?",
+          items: [],
+          cta: "What would you like to do?",
+          quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
+        },
+        metadata: {
+          intent: 'help',
+          conversationId,
+          timestamp: new Date().toISOString()
+        }
+      };
     }
     
     try {
@@ -886,8 +918,85 @@ class LangGraphOrchestrator {
     };
   }
 
+  async handleContextualQuickReply(quickReplyNumber, conversationId, customerId, hasRecentCategory) {
+    // Handle secondary menu quick replies (Show me more, Different category, Get help)
+    if (hasRecentCategory && quickReplyNumber <= 3) {
+      if (quickReplyNumber === 1) {
+        // "Show me more" - use last category, skip LLM, fast response with pagination
+        const context = memoryService.getConversationContext(conversationId, customerId);
+        const category = context.lastCategory || 'luxury products';
+        const viewCount = context.viewCount || 0; // Track how many times user viewed this category
+        
+        // Skip intent classification for faster response
+        const allProducts = await enhancedRAGService.searchProducts(category, { lastCategory: category, skipIntentClassification: true });
+        
+        // Paginate: show different products each time
+        const startIndex = (viewCount % Math.max(1, Math.floor(allProducts.length / 3))) * 3;
+        const top = Array.isArray(allProducts) ? allProducts.slice(startIndex, startIndex + 3) : [];
+        
+        // Update view count
+        context.viewCount = (viewCount || 0) + 1;
+        memoryService.updateConversationContext(conversationId, context);
+        
+        return {
+          success: true,
+          naturalResponse: {
+            opening: top.length > 0 ? 'Here are more luxury products I found for you:' : 'I could not find more products in this category right now.',
+            items: top.map(p => ({
+              headline: p.title,
+              price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
+              one_liner: (p.description || '').substring(0, 60) + '...' || 'Luxury product',
+              image: '🛍️'
+            })),
+            cta: 'Which product interests you most?',
+            quick_replies: ['Show me more', 'Different category', 'Get help']
+          },
+          metadata: {
+            intent: 'show_more',
+            productsFound: top.length,
+            category: context.lastCategory
+          }
+        };
+      } else if (quickReplyNumber === 2) {
+        // "Different category" - show category menu (already handled in processQuery, but ensure it works)
+        return {
+          success: true,
+          naturalResponse: {
+            opening: "Great! What category would you like to explore?",
+            items: [],
+            cta: "Choose a category to browse:",
+            quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "Skincare products", "Wellness items", "View all products"]
+          },
+          metadata: {
+            intent: 'category_selection',
+            conversationId
+          }
+        };
+      } else if (quickReplyNumber === 3) {
+        // "Get help" - show help menu
+        return {
+          success: true,
+          naturalResponse: {
+            opening: "I'm here to help you find the perfect luxury products! How can I assist you?",
+            items: [],
+            cta: "What would you like to do?",
+            quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
+          },
+          metadata: {
+            intent: 'help',
+            conversationId
+          }
+        };
+      }
+    }
+    
+    // Fallback to regular quick reply handling
+    return this.handleQuickReply(quickReplyNumber, conversationId, customerId);
+  }
+
   async handleQuickReply(quickReplyNumber, conversationId, customerId = null) {
-    // Deterministic, LLM-free handling for reliability
+    // Deterministic, LLM-free handling for reliability (primary menu)
+    // Fast path: skip all LLM calls for category selection
     const quickReplyQueries = {
       1: 'luxury handbags',
       2: 'luxury watches',
@@ -896,32 +1005,47 @@ class LangGraphOrchestrator {
     };
 
     const query = quickReplyQueries[quickReplyNumber] || 'luxury products';
-
-    // Build minimal state
-    const state = this.getInitialState(conversationId, customerId);
-    state.currentIntent = 'product_search';
-    state.query = query;
+    
+    // Determine category for memory tracking
+    let category = null;
+    if (quickReplyNumber === 1) category = 'handbags';
+    else if (quickReplyNumber === 2) category = 'watches';
+    else if (quickReplyNumber === 3) category = 'jewelry';
+    else if (quickReplyNumber === 4) category = 'all';
 
     try {
-      const products = await enhancedRAGService.searchProducts(query, state.context);
-      state.products = Array.isArray(products) ? products : [];
-      
-      // Compose simple response without LLM
-      const top = state.products.slice(0, 3);
-      state.response = {
-        opening: top.length > 0 ? 'Here are some luxury products I found for you:' : 'I could not find products for that right now. Would you like to try another category?',
-        items: top.map(p => ({
-          headline: p.title,
-          price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
-          one_liner: p.description?.substring(0, 60) + '...' || 'Luxury product',
-          image: '🛍️'
-        })),
-        cta: 'Which product interests you most?',
-        quick_replies: ['Show me more', 'Different category', 'Get help']
-      };
+      // Ultra-fast path: skip intent classification, direct category search
+      const products = await enhancedRAGService.searchProducts(query, { 
+        lastCategory: category,
+        skipIntentClassification: true 
+      });
+      const top = Array.isArray(products) ? products.slice(0, 3) : [];
 
-      await this.memoryUpdateNode({ ...state, response: state.response });
-      return this.formatResponse(state);
+      // Update memory with category
+      const context = memoryService.getConversationContext(conversationId, customerId);
+      context.lastCategory = category;
+      context.viewCount = 0; // Reset view count for new category
+      memoryService.updateConversationContext(conversationId, context);
+
+      return {
+        success: true,
+        naturalResponse: {
+          opening: top.length > 0 ? 'Here are some luxury products I found for you:' : 'I could not find products for that right now. Would you like to try another category?',
+          items: top.map(p => ({
+            headline: p.title,
+            price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
+            one_liner: (p.description || '').substring(0, 60) + '...' || 'Luxury product',
+            image: '🛍️'
+          })),
+          cta: 'Which product interests you most?',
+          quick_replies: ['Show me more', 'Different category', 'Get help']
+        },
+        metadata: {
+          intent: 'product_search',
+          productsFound: top.length,
+          category
+        }
+      };
     } catch (e) {
       // Graceful fallback
       return {

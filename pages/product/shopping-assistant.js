@@ -13,10 +13,26 @@ const EcommerceChatBot = () => {
     conversationId: `conv_${Date.now()}`
   });
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (messagesContainerRef.current) {
+      // Scroll to the actual bottom of the container, accounting for padding
+      const container = messagesContainerRef.current;
+      const scrollHeight = container.scrollHeight;
+      
+      // Use requestAnimationFrame for smoother scrolling
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: scrollHeight,
+          behavior: 'smooth'
+        });
+      });
+    } else if (messagesEndRef.current) {
+      // Fallback to scrollIntoView if container ref is not available
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
   };
 
   useEffect(() => {
@@ -44,18 +60,45 @@ const EcommerceChatBot = () => {
   useEffect(() => {
     // Always scroll to bottom when messages change
     if (messages.length > 0) {
-      const timer = setTimeout(scrollToBottom, 100);
+      // Use a slightly longer timeout to ensure DOM has fully rendered
+      const timer = setTimeout(scrollToBottom, 150);
       return () => clearTimeout(timer);
     }
   }, [messages]);
 
   const sendMessage = async (quickReplyNumber = null, quickReplyText = null) => {
-    const messageText = (quickReplyText && quickReplyText.trim()) || (quickReplyNumber ? quickReplyNumber.toString() : inputMessage.trim());
-    if (!messageText || isLoading) return;
+    // Prevent double submissions
+    if (isLoading) return;
+    
+    // Safely extract message text - ensure it's always a string primitive
+    let messageText = '';
+    let hasQuickReply = false;
+    
+    if (quickReplyText && typeof quickReplyText === 'string' && quickReplyText.trim()) {
+      messageText = quickReplyText.trim();
+    } else if (quickReplyNumber !== null && quickReplyNumber !== undefined && typeof quickReplyNumber === 'number') {
+      // This is a numeric quick reply - don't convert to text, keep as number
+      hasQuickReply = true;
+      messageText = ''; // Will use quickReply in payload
+    } else if (inputMessage && typeof inputMessage === 'string' && inputMessage.trim()) {
+      messageText = inputMessage.trim();
+    }
+    
+    // Validate we have something to send
+    if (!hasQuickReply && (!messageText || !messageText.trim())) {
+      return; // Nothing to send
+    }
+
+    // For user display, show the text or a quick reply indicator
+    let displayText = messageText;
+    if (hasQuickReply && quickReplyNumber !== null) {
+      // Show quick reply number for user feedback
+      displayText = `Quick reply: ${quickReplyNumber}`;
+    }
 
     const userMessage = {
       id: Date.now(),
-      text: messageText,
+      text: displayText,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
@@ -73,80 +116,204 @@ const EcommerceChatBot = () => {
     }, 100);
 
     try {
+        // Clean context to avoid circular references - only include serializable primitive values
+        // Extract only string/number/boolean/null values, ignore any React refs or DOM elements
+        const cleanContext = {
+          conversationId: (typeof conversationContext?.conversationId === 'string') 
+            ? conversationContext.conversationId 
+            : `conv_${Date.now()}`,
+          lastCategory: (typeof conversationContext?.lastCategory === 'string' || conversationContext?.lastCategory === null)
+            ? conversationContext.lastCategory 
+            : null,
+          source: 'web',
+          timestamp: new Date().toISOString()
+        };
+
+        // Ensure we have valid data to send (plain object, no circular refs)
+        // API requires either 'message' or 'quickReply', never both, never neither
+        let payload;
+        
+        // Priority: if we have a quickReply number, use that (explicit numeric quick reply)
+        if (hasQuickReply && quickReplyNumber !== null && quickReplyNumber !== undefined) {
+          const quickReplyNum = Number(quickReplyNumber);
+          if (!isNaN(quickReplyNum)) {
+            payload = {
+              quickReply: quickReplyNum,
+              customerId: `web-${Date.now()}`,
+              context: cleanContext
+            };
+          } else {
+            // Invalid quick reply number, fall back to message
+            payload = {
+              message: String(messageText || ''),
+              customerId: `web-${Date.now()}`,
+              context: cleanContext
+            };
+          }
+        } else if (messageText && messageText.trim()) {
+          // Use message text (this handles regular messages and text-based quick replies)
+          payload = {
+            message: String(messageText.trim()),
+            customerId: `web-${Date.now()}`,
+            context: cleanContext
+          };
+        } else {
+          // This should never happen due to validation above, but add safety
+          console.error('Invalid payload: no message or quickReply');
+          throw new Error('Cannot send empty message');
+        }
+        
+        // Final validation: ensure payload has message OR quickReply
+        if (!payload.message && (payload.quickReply === null || payload.quickReply === undefined)) {
+          console.error('Payload validation failed:', payload);
+          throw new Error('Payload must have either message or quickReply');
+        }
+
+        // Validate payload is JSON-serializable before sending
+        try {
+          JSON.stringify(payload);
+        } catch (jsonError) {
+          console.error('Payload contains non-serializable data:', jsonError);
+          // Create a minimal safe payload
+          const safePayload = {
+            message: String(messageText || ''),
+            customerId: `web-${Date.now()}`,
+            context: {
+              conversationId: `conv_${Date.now()}`,
+              source: 'web',
+              timestamp: new Date().toISOString()
+            }
+          };
+          payload.message = safePayload.message;
+          payload.customerId = safePayload.customerId;
+          payload.context = safePayload.context;
+        }
+
+        // Add timeout for mobile networks
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
         const response = await fetch('/api/meshai/langgraph-recommendation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          // Send textual quick replies as normal messages to avoid numeric misrouting
-          ...(quickReplyText ? { message: messageText } : (quickReplyNumber ? { quickReply: quickReplyNumber } : { message: messageText })),
-          customerId: `web-${Date.now()}`,
-          context: {
-            ...conversationContext,
-            source: 'web',
-            timestamp: new Date().toISOString()
-          }
-        }),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+
+        clearTimeout(timeoutId);
+
+      // Check if response is ok before parsing
+      if (!response.ok) {
+        let errorText = '';
+        try {
+          errorText = await response.text();
+          // Try to parse as JSON for better error message
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error) {
+              errorText = errorJson.error;
+            } else if (errorJson.message) {
+              errorText = errorJson.message;
+            }
+          } catch {
+            // Not JSON, use text as-is
+          }
+        } catch {
+          errorText = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        console.error('API Error Response:', response.status, errorText);
+        
+        // For 400 errors, show more helpful message
+        if (response.status === 400) {
+          throw new Error(`Invalid request: ${errorText || 'Please check your input and try again.'}`);
+        }
+        throw new Error(`Server error: ${response.status} ${errorText || response.statusText}`);
+      }
 
       const data = await response.json();
 
-      if (data.success) {
-        let botResponse = '';
+      // Handle response - use naturalResponse if available, even if success is false
+      let botResponse = '';
+      
+      if (data.naturalResponse) {
+        // Use natural language response from API (even if success is false, the message might be helpful)
+        const { naturalResponse } = data;
         
-        if (data.naturalResponse) {
-          // Use natural language response from working production API
-          const { naturalResponse } = data;
-          
-          // Update conversation context based on response
-          if (naturalResponse.metadata?.context?.lastCategory) {
-            setConversationContext(prev => ({
-              ...prev,
-              lastCategory: naturalResponse.metadata.context.lastCategory
-            }));
-          }
-          
-          botResponse = `${naturalResponse.opening}\n\n`;
-          
-          if (naturalResponse.items && naturalResponse.items.length > 0) {
-            naturalResponse.items.forEach((item, index) => {
-              botResponse += `${index + 1}. ${item.image} *${item.headline}* - ${item.price}\n`;
-              botResponse += `   ${item.one_liner}\n\n`;
-            });
-          }
-          
-          botResponse += `💬 ${naturalResponse.cta}\n\n`;
+        // Update conversation context based on response
+        if (naturalResponse.metadata?.context?.lastCategory) {
+          setConversationContext(prev => ({
+            ...prev,
+            lastCategory: naturalResponse.metadata.context.lastCategory
+          }));
+        }
+        
+        botResponse = `${naturalResponse.opening}\n\n`;
+        
+        if (naturalResponse.items && naturalResponse.items.length > 0) {
+          naturalResponse.items.forEach((item, index) => {
+            botResponse += `${index + 1}. ${item.image} *${item.headline}* - ${item.price}\n`;
+            botResponse += `   ${item.one_liner}\n\n`;
+          });
+        }
+        
+        botResponse += `💬 ${naturalResponse.cta}\n\n`;
+        if (naturalResponse.quick_replies && naturalResponse.quick_replies.length > 0) {
           botResponse += `Quick replies:\n`;
           naturalResponse.quick_replies.forEach((reply, index) => {
             botResponse += `${index + 1}. ${reply}\n`;
           });
-        } else {
-          botResponse = "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?";
         }
-
-        const botMessage = {
-          id: Date.now() + 1,
-          text: botResponse,
-          sender: 'bot',
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, botMessage]);
+      } else if (data.success) {
+        botResponse = "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?";
       } else {
-        const errorMessage = {
-          id: Date.now() + 1,
-          text: "I'm having trouble processing your request right now. Please try again in a moment.",
-          sender: 'bot',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, errorMessage]);
+        // No naturalResponse and success is false - use error message or fallback
+        botResponse = data.error || "I'm having trouble processing your request right now. Please try again in a moment.";
       }
+
+      const botMessage = {
+        id: Date.now() + 1,
+        text: botResponse,
+        sender: 'bot',
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Provide more specific error messages
+      let errorText = "I'm having trouble connecting to the server. Please try again in a moment.";
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        errorText = "Request timed out. Please check your internet connection and try again.";
+      } else if (error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+        errorText = "I'm having trouble connecting. Please check your internet connection and try again.";
+      } else if (error.message?.includes('Invalid request') || error.message?.includes('400')) {
+        errorText = error.message || "I didn't understand that. Please try a different message.";
+      } else if (error.message?.includes('Cannot send empty message') || error.message?.includes('Payload must have')) {
+        errorText = "I need a message to help you. Please type something or select an option.";
+      } else if (error.message?.includes('Server error')) {
+        errorText = "I'm having trouble processing your request right now. Please try again in a moment.";
+      } else if (error.message?.includes('JSON')) {
+        errorText = "I received an invalid response. Please try again.";
+      }
+      
+      // Extract user-friendly error from error message if available
+      if (error.message && (error.message.includes('Invalid request:') || error.message.includes('400'))) {
+        const match = error.message.match(/(?:Invalid request:|400)[\s:]+(.+)/);
+        if (match && match[1]) {
+          const extractedError = match[1].trim();
+          if (extractedError && extractedError.length < 100) {
+            errorText = extractedError;
+          }
+        }
+      }
+      
       const errorMessage = {
         id: Date.now() + 1,
-        text: "I'm having trouble connecting to the server. Please try again in a moment.",
+        text: errorText,
         sender: 'bot',
         timestamp: new Date().toISOString()
       };
@@ -171,13 +338,36 @@ const EcommerceChatBot = () => {
   };
 
   const handleQuickReplyClick = (quickReplyNumber, quickReplyText) => {
+    // Ensure we extract primitive values only - no DOM elements or React refs
+    let safeNumber = null;
+    let safeText = null;
+    
+    // Safely extract number
+    if (quickReplyNumber !== null && quickReplyNumber !== undefined) {
+      if (typeof quickReplyNumber === 'number') {
+        safeNumber = quickReplyNumber;
+      } else if (typeof quickReplyNumber === 'string') {
+        const parsed = parseInt(quickReplyNumber, 10);
+        if (!isNaN(parsed)) {
+          safeNumber = parsed;
+        }
+      }
+    }
+    
+    // Safely extract text
+    if (quickReplyText && typeof quickReplyText === 'string') {
+      safeText = quickReplyText.trim();
+    }
+    
     // Prefer sending the label text to keep replies contextual
-    if (quickReplyText) {
-      sendMessage(null, quickReplyText);
+    if (safeText) {
+      sendMessage(null, safeText);
       return;
     }
     // Fallback to numeric behavior if no text provided
-    sendMessage(quickReplyNumber);
+    if (safeNumber !== null) {
+      sendMessage(safeNumber);
+    }
   };
 
   return (
@@ -212,7 +402,7 @@ const EcommerceChatBot = () => {
           </div>
         </div>
 
-            <div className={styles.messagesContainer}>
+            <div className={styles.messagesContainer} ref={messagesContainerRef}>
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -225,11 +415,20 @@ const EcommerceChatBot = () => {
                         const quickReplyMatch = line.match(/^(\d+)\.\s(.+)$/);
                         if (quickReplyMatch) {
                           const [, number, text] = quickReplyMatch;
+                          // Extract primitive values immediately to avoid React event issues
+                          const quickReplyNum = parseInt(number, 10);
+                          const quickReplyTxt = String(text || '').trim();
+                          
                           return (
                             <div key={index} className={styles.quickReplyContainer}>
                               <button 
                                 className={styles.quickReplyButton}
-                                onClick={() => handleQuickReplyClick(number, text)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  // Pass only primitive values, never the event
+                                  handleQuickReplyClick(quickReplyNum, quickReplyTxt);
+                                }}
                               >
                                 {number}. {text}
                               </button>

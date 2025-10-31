@@ -2,18 +2,64 @@
 // Uses function calling, memory, and state-based workflow
 
 import { langGraphOrchestrator } from '../../../services/langGraphOrchestrator.js';
+import { memoryService } from '../../../services/memoryService.js';
 
 export default async function handler(req, res) {
+  // Set CORS headers for mobile compatibility
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      error: 'Method not allowed',
+      naturalResponse: {
+        opening: "I'm sorry, I encountered an error. Please try again.",
+        items: [],
+        cta: "How can I help you find luxury products?",
+        quick_replies: ["Try again", "Get help", "Start over"]
+      }
+    });
   }
 
   try {
-    const { message, quickReply, context, customerId } = req.body;
+    // Ensure body is parsed correctly
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        console.error('Failed to parse body:', e);
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid JSON in request body',
+          naturalResponse: {
+            opening: "I'm sorry, I encountered an error. Please try again.",
+            items: [],
+            cta: "How can I help you find luxury products?",
+            quick_replies: ["Try again", "Get help", "Start over"]
+          }
+        });
+      }
+    }
+
+    const { message, quickReply, context, customerId } = body;
     
     if (!message && !quickReply) {
       return res.status(400).json({ 
-        error: 'Message or quickReply is required' 
+        success: false,
+        error: 'Message or quickReply is required',
+        naturalResponse: {
+          opening: "I'm sorry, I need a message to help you. Please try again.",
+          items: [],
+          cta: "How can I help you find luxury products?",
+          quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry"]
+        }
       });
     }
 
@@ -25,9 +71,13 @@ export default async function handler(req, res) {
 
     let result;
 
+    // Check if this is a context-aware quick reply (secondary menu)
+    const memoryContext = memoryService.getConversationContext(conversationId, customer);
+    const hasRecentCategory = memoryContext.lastCategory;
+    
     if (quickReply) {
-      // Handle quick reply
-      result = await langGraphOrchestrator.handleQuickReply(quickReply, conversationId, customer);
+      // Handle quick reply with context awareness
+      result = await langGraphOrchestrator.handleContextualQuickReply(quickReply, conversationId, customer, hasRecentCategory);
     } else {
       // Detect numeric messages as quick replies
       let detectedQuickReply = null;
@@ -36,7 +86,14 @@ export default async function handler(req, res) {
       }
       
       if (detectedQuickReply) {
-        result = await langGraphOrchestrator.handleQuickReply(detectedQuickReply, conversationId, customer);
+        // Context-aware: If we have a recent category, numbers 1-3 might be secondary menu
+        if (hasRecentCategory && detectedQuickReply <= 3) {
+          // Likely secondary menu: 1=Show me more, 2=Different category, 3=Get help
+          result = await langGraphOrchestrator.handleContextualQuickReply(detectedQuickReply, conversationId, customer, hasRecentCategory);
+        } else {
+          // Primary menu: category selection
+          result = await langGraphOrchestrator.handleQuickReply(detectedQuickReply, conversationId, customer);
+        }
       } else {
         // Process natural language query
         result = await langGraphOrchestrator.processQuery(message, conversationId, customer);
@@ -65,15 +122,24 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ LangGraph API error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      naturalResponse: {
-        opening: "I'm sorry, I encountered an error. Please try again.",
-        items: [],
-        cta: "How can I help you find luxury products?",
-        quick_replies: ["Try again", "Get help", "Start over"]
-      }
-    });
+    console.error('Error stack:', error.stack);
+    
+    // Ensure we always return valid JSON
+    try {
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Unknown error occurred',
+        naturalResponse: {
+          opening: "I'm sorry, I encountered an error. Please try again.",
+          items: [],
+          cta: "How can I help you find luxury products?",
+          quick_replies: ["Try again", "Get help", "Start over"]
+        }
+      });
+    } catch (jsonError) {
+      // Fallback if JSON serialization fails
+      console.error('Failed to send JSON response:', jsonError);
+      res.status(500).end('Internal server error');
+    }
   }
 }

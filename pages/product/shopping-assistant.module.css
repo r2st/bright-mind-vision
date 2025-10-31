@@ -138,6 +138,7 @@
 .messagesContainer {
   flex: 1;
   padding: 0;
+  padding-bottom: 80px; /* Reserve space for fixed input container */
   overflow-y: auto;
   background: #ffffff;
   min-height: 0;
@@ -146,8 +147,9 @@
   display: flex;
   flex-direction: column;
   width: 100% !important;
-  height: calc(100vh - 120px) !important;
+  height: calc(100vh - 140px) !important;
   max-width: none !important;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .message {
@@ -289,11 +291,15 @@
   gap: 1rem;
   align-items: center;
   flex-shrink: 0;
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 99999;
   min-height: 60px;
   width: 100%;
+  max-width: 100vw;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .messageInput {
@@ -616,17 +622,23 @@
     right: 0 !important;
     bottom: 0 !important;
     height: 100vh !important;
+    height: 100dvh !important; /* Use dynamic viewport height for mobile */
     width: 100vw !important;
   }
   
   .chatContainer {
     height: 100vh !important;
+    height: 100dvh !important; /* Use dynamic viewport height for mobile */
     width: 100vw !important;
     border-radius: 0;
+    padding-bottom: 70px !important; /* Reserve space for fixed input */
   }
   
   .chatHeader {
     padding: 0.75rem 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
   
   .botInfo h3 {
@@ -635,20 +647,38 @@
   
   .messagesContainer {
     padding: 0.75rem 1rem;
+    padding-bottom: 80px !important; /* Extra space for input */
+    height: calc(100vh - 140px) !important;
+    height: calc(100dvh - 140px) !important; /* Use dynamic viewport height */
+    max-height: none !important;
   }
   
   .inputContainer {
     padding: 0.75rem 1rem;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    background: white !important;
+    border-top: 2px solid #e5e7eb !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15) !important;
   }
   
   .messageInput {
     font-size: 0.9rem;
     padding: 0.6rem 0.8rem;
+    width: 100% !important;
+    max-width: calc(100% - 60px) !important;
   }
   
   .sendButton {
     padding: 0.6rem;
     font-size: 1rem;
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0;
   }
 }
 
@@ -660,17 +690,24 @@
     right: 0 !important;
     bottom: 0 !important;
     height: 100vh !important;
+    height: 100dvh !important; /* Use dynamic viewport height for mobile */
     width: 100vw !important;
   }
   
   .chatContainer {
     height: 100vh !important;
+    height: 100dvh !important; /* Use dynamic viewport height for mobile */
     width: 100vw !important;
     border-radius: 0;
+    padding-bottom: 70px !important; /* Reserve space for fixed input */
   }
   
   .chatHeader {
     padding: 0.5rem 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    min-height: 50px;
   }
   
   .botInfo {
@@ -678,37 +715,65 @@
   }
   
   .botAvatar {
-    width: 40px;
-    height: 40px;
-    font-size: 1.2rem;
-  }
-  
-  .botInfo h3 {
+    width: 36px;
+    height: 36px;
     font-size: 1rem;
   }
   
+  .botInfo h3 {
+    font-size: 0.9rem;
+  }
+  
+  .status {
+    font-size: 0.7rem;
+  }
+  
   .whatsappButton {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    gap: 0.35rem;
+  }
+  
+  .whatsappButton span {
+    display: none; /* Hide text on very small screens */
   }
   
   .messagesContainer {
     padding: 0.5rem 0.75rem;
+    padding-bottom: 80px !important; /* Extra space for input */
+    height: calc(100vh - 130px) !important;
+    height: calc(100dvh - 130px) !important; /* Use dynamic viewport height */
+    max-height: none !important;
   }
   
   .inputContainer {
     padding: 0.5rem 0.75rem;
     gap: 0.5rem;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    background: white !important;
+    border-top: 2px solid #e5e7eb !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15) !important;
+    min-height: 60px;
   }
   
   .messageInput {
     font-size: 0.85rem;
     padding: 0.5rem 0.7rem;
+    width: 100% !important;
+    max-width: calc(100% - 55px) !important;
   }
   
   .sendButton {
     padding: 0.5rem;
     font-size: 0.9rem;
+    width: 40px !important;
+    height: 40px !important;
+    flex-shrink: 0;
   }
   
   .features h2,
