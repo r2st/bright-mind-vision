@@ -235,6 +235,18 @@ const EcommerceChatBot = () => {
 
       const data = await response.json();
 
+      // Log full response for debugging
+      if (!data.success) {
+        console.error('❌ API returned error response:', {
+          success: data.success,
+          error: data.error,
+          errorType: data.errorType,
+          metadata: data.metadata,
+          status: response.status,
+          fullResponse: data
+        });
+      }
+
       // Handle response - use naturalResponse if available, even if success is false
       let botResponse = '';
       
@@ -270,7 +282,30 @@ const EcommerceChatBot = () => {
         botResponse = "Thank you for your message! I'm here to help you find the perfect products. Could you tell me more about what you're looking for?";
       } else {
         // No naturalResponse and success is false - use error message or fallback
-        botResponse = data.error || "I'm having trouble processing your request right now. Please try again in a moment.";
+        // Include more detailed error information for debugging
+        const errorMsg = data.error || "I'm having trouble processing your request right now. Please try again in a moment.";
+        const errorType = data.errorType || 'Unknown error';
+        
+        // Log detailed error information to console for debugging
+        console.error('❌ API Error Details:', {
+          error: data.error,
+          errorType: data.errorType,
+          metadata: data.metadata,
+          fullResponse: data
+        });
+        
+        // Show detailed error in UI for debugging
+        // Always show error details if available (helps with Netlify debugging)
+        if (data.error && data.error.length < 150) {
+          botResponse = `Error: ${errorMsg}${errorType && errorType !== 'Error' ? ` (${errorType})` : ''}. Check browser console (F12) for full details.`;
+        } else if (errorType && errorType !== 'Error') {
+          botResponse = `I encountered an error (${errorType}). Please check the browser console (F12) for details.`;
+        } else {
+          botResponse = `${errorMsg} Check browser console (F12) for details.`;
+        }
+        
+        // Always log to console for debugging
+        console.error('❌ Full error response from API:', data);
       }
 
       const botMessage = {
@@ -282,7 +317,15 @@ const EcommerceChatBot = () => {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error('Error sending message:', error);
+      // Log comprehensive error information for debugging
+      console.error('❌ Error sending message:', {
+        error: error,
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        response: error.response,
+        timestamp: new Date().toISOString()
+      });
       
       // Provide more specific error messages
       let errorText = "I'm having trouble connecting to the server. Please try again in a moment.";
@@ -295,7 +338,16 @@ const EcommerceChatBot = () => {
       } else if (error.message?.includes('Cannot send empty message') || error.message?.includes('Payload must have')) {
         errorText = "I need a message to help you. Please type something or select an option.";
       } else if (error.message?.includes('Server error')) {
-        errorText = "I'm having trouble processing your request right now. Please try again in a moment.";
+        // Extract detailed error information from the error message
+        const errorMatch = error.message.match(/Server error: (\d+) (.+)/);
+        if (errorMatch) {
+          const [, status, details] = errorMatch;
+          console.error('❌ Server Error Details:', { status, details, fullError: error });
+          // Show error details with instructions to check console
+          errorText = `Server error (${status}): ${details}. Check browser console (F12) for full details.`;
+        } else {
+          errorText = "I'm having trouble processing your request right now. Please try again in a moment.";
+        }
       } else if (error.message?.includes('JSON')) {
         errorText = "I received an invalid response. Please try again.";
       }

@@ -817,13 +817,60 @@ class LangGraphOrchestrator {
       // Use tool-generated response
       state.response = state.toolResponse;
     } else if (state.currentIntent === 'greeting' || state.currentIntent === 'casual_conversation') {
-      // Handle greetings and casual conversation
-      state.response = {
-        opening: "Hello! I'm doing great, thank you for asking! 😊 I'm here to help you find the perfect luxury products. What would you like to explore today?",
-        items: [],
-        cta: "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products.",
-        quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
-      };
+      // Generate natural, varied greeting responses using LLM
+      try {
+        const greetingResponse = await llmProvider.chatCompletion([
+          {
+            role: 'system',
+            content: `You are a friendly, luxury shopping assistant for a high-end boutique in Dubai. 
+            When the user greets you, respond naturally and warmly. Match the tone of their greeting:
+            - If they just say "hi" or "hello", greet them back enthusiastically and offer help
+            - If they ask "how are you", respond naturally about how you're doing, then pivot to offering help
+            - Keep responses warm, personal, and engaging
+            - Always end by asking what they'd like to explore or offering to help them find products
+            
+            Return your response as a natural greeting that acknowledges what they said. Keep it conversational and friendly (2-3 sentences max).`
+          },
+          {
+            role: 'user',
+            content: state.query || 'Hello'
+          }
+        ], {
+          model: 'primary',
+          temperature: 0.8, // Higher temperature for more varied, natural responses
+          provider: process.env.LLM_PROVIDER_NLG || null,
+          modelName: process.env.LLM_NLG_MODEL || null
+        });
+
+        const greetingText = greetingResponse.choices[0].message.content.trim();
+        
+        state.response = {
+          opening: greetingText,
+          items: [],
+          cta: "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products. What would you like to explore today?",
+          quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
+        };
+      } catch (error) {
+        console.error('Error generating greeting response, using fallback:', error);
+        // Fallback to varied responses based on query
+        const queryLower = (state.query || '').toLowerCase();
+        let opening;
+        
+        if (queryLower.includes('how are you') || queryLower.includes('how are you doing')) {
+          opening = "I'm doing great, thank you for asking! 😊 I'm here and ready to help you find the perfect luxury products. What would you like to explore today?";
+        } else if (queryLower.includes('good morning') || queryLower.includes('good afternoon') || queryLower.includes('good evening')) {
+          opening = `Hello! ${queryLower.includes('morning') ? 'Good morning' : queryLower.includes('afternoon') ? 'Good afternoon' : 'Good evening'}! I'm here to help you discover amazing luxury products. What can I help you find today?`;
+        } else {
+          opening = "Hello! 👋 Welcome! I'm your AI shopping assistant and I'm excited to help you find the perfect luxury products. What would you like to explore today?";
+        }
+        
+        state.response = {
+          opening: opening,
+          items: [],
+          cta: "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products.",
+          quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
+        };
+      }
     } else {
       // Generate response from products
       state.response = await enhancedRAGService.generateResponse(

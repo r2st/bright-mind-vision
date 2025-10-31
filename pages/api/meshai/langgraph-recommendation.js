@@ -136,16 +136,38 @@ export default async function handler(req, res) {
     
     // Ensure we always return valid JSON
     try {
-      return res.status(500).json({
+      // Include detailed error information for debugging
+      const errorDetails = {
         success: false,
         error: error.message || 'Unknown error occurred',
+        errorType: error.name || 'Error',
+        // Include stack trace only in development
+        ...(process.env.NODE_ENV !== 'production' && { stack: error.stack }),
         naturalResponse: {
-          opening: "I'm sorry, I encountered an error. Please try again.",
+          opening: process.env.NODE_ENV === 'production' 
+            ? "I'm sorry, I encountered an error. Please try again."
+            : `I encountered an error: ${error.message || 'Unknown error'}. Please try again.`,
           items: [],
           cta: "How can I help you find luxury products?",
           quick_replies: ["Try again", "Get help", "Start over"]
+        },
+        // Include metadata for debugging
+        metadata: {
+          timestamp: new Date().toISOString(),
+          conversationId,
+          hasMessage: !!message,
+          hasQuickReply: !!quickReply,
+          // Include environment info for debugging
+          ...(process.env.NODE_ENV !== 'production' && {
+            environment: process.env.NODE_ENV,
+            hasGroqKey: !!process.env.LLM_GROQ_API_KEY,
+            hasGeminiKey: !!process.env.LLM_GEMINI_API_KEY,
+            provider: process.env.LLM_PROVIDER || 'groq'
+          })
         }
-      });
+      };
+      
+      return res.status(500).json(errorDetails);
     } catch (jsonError) {
       // Fallback if JSON serialization fails
       console.error('Failed to send JSON response:', jsonError);

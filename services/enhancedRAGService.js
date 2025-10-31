@@ -498,11 +498,14 @@ class EnhancedRAGService {
           6. Maintains a luxury, personalized, and friendly tone
           
           IMPORTANT RULES FOR OPENING MESSAGE:
+          - CRITICAL: The opening message MUST match the user's query. If they ask for "skincare", the opening MUST mention skincare, not watches or bags
           - If the user asks for "bags" or "handbags", say something like "Here are some beautiful bags for you:" or "I've curated some luxury handbags for you:"
           - If they ask for "watches", say "Here are some exquisite watches:" or "I found some stunning timepieces for you:"
-          - If they ask for "skincare", say "Here are some premium skincare products:" or "I've selected some luxury skincare items for you:"
+          - If they ask for "skincare" or "skin care", say "Here are some premium skincare products:" or "I've selected some luxury skincare items for you:"
           - Match the user's language and tone - be natural and conversational
           - Never use generic phrases like "Here are some luxury products I found for you:" when the user was specific
+          - NEVER use an opening about a different product category than what the user asked for (e.g., don't say "watches" if they asked for "skincare")
+          - Double-check that your opening message matches the category of products you're showing
           
           Format your response as JSON with:
           - opening: Natural, context-aware welcome message that reflects the user's query
@@ -534,6 +537,39 @@ class EnhancedRAGService {
       const content = response.choices[0].message.content;
       try {
         const parsed = JSON.parse(content);
+        
+        // Validate and fix the opening message to match the query context
+        if (parsed.opening) {
+          const queryLower = query.toLowerCase();
+          const openingLower = parsed.opening.toLowerCase();
+          
+          // If opening doesn't match query context, regenerate it
+          if (queryLower.includes('bag') || queryLower.includes('handbag')) {
+            if (!openingLower.includes('bag') && !openingLower.includes('handbag')) {
+              parsed.opening = "Here are some beautiful bags for you:";
+            }
+          } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
+            if (!openingLower.includes('watch') && !openingLower.includes('timepiece')) {
+              parsed.opening = "Here are some exquisite watches for you:";
+            }
+          } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery')) {
+            if (!openingLower.includes('jewelry') && !openingLower.includes('jewellery')) {
+              parsed.opening = "Here are some stunning jewelry pieces for you:";
+            }
+          } else if (queryLower.includes('skincare') || queryLower.includes('skin care') || queryLower.includes('beauty')) {
+            if (!openingLower.includes('skincare') && !openingLower.includes('skin') && !openingLower.includes('beauty')) {
+              parsed.opening = "Here are some premium skincare products for you:";
+            }
+          } else if (queryLower.includes('wellness')) {
+            if (!openingLower.includes('wellness')) {
+              parsed.opening = "Here are some wellness products for you:";
+            }
+          } else if (queryLower.includes('fragrance') || queryLower.includes('perfume')) {
+            if (!openingLower.includes('fragrance') && !openingLower.includes('perfume')) {
+              parsed.opening = "Here are some luxury fragrances for you:";
+            }
+          }
+        }
         
         // Fix prices in the response
         if (parsed.items && Array.isArray(parsed.items)) {
