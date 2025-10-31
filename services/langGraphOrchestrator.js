@@ -590,7 +590,16 @@ class LangGraphOrchestrator {
       return this.formatResponse(state);
       
     } catch (error) {
-      console.error('Error in LangGraph orchestrator:', error);
+      console.error('❌ Error in LangGraph orchestrator:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Query was:', query);
+      try {
+        console.error('❌ State at error:', JSON.stringify(state, null, 2));
+      } catch (jsonError) {
+        console.error('❌ Could not serialize state (may contain circular refs)');
+        console.error('❌ State keys:', Object.keys(state || {}));
+      }
       return {
         success: false,
         error: error.message,
@@ -896,12 +905,38 @@ class LangGraphOrchestrator {
       };
     }
 
-    // Fallback response
+    // Fallback response - make it context-aware
     const products = Array.isArray(state.products) ? state.products : [];
+    const query = (state.query || '').toLowerCase();
+    
+    // Generate context-aware opening based on query
+    let opening = "Here are some luxury products I found for you:";
+    if (query.includes('bag') || query.includes('handbag')) {
+      opening = "Here are some beautiful bags for you:";
+    } else if (query.includes('watch') || query.includes('timepiece')) {
+      opening = "Here are some exquisite watches for you:";
+    } else if (query.includes('jewelry') || query.includes('jewellery')) {
+      opening = "Here are some stunning jewelry pieces for you:";
+    } else if (query.includes('skincare') || query.includes('beauty')) {
+      opening = "Here are some premium skincare products for you:";
+    } else if (query.includes('wellness')) {
+      opening = "Here are some wellness products for you:";
+    } else if (query.includes('fragrance') || query.includes('perfume')) {
+      opening = "Here are some luxury fragrances for you:";
+    } else if (state.memory?.lastCategory) {
+      // Use last category if available
+      const category = state.memory.lastCategory;
+      if (category === 'handbags') opening = "Here are some beautiful bags for you:";
+      else if (category === 'watches') opening = "Here are some exquisite watches for you:";
+      else if (category === 'jewelry') opening = "Here are some stunning jewelry pieces for you:";
+      else if (category === 'skincare') opening = "Here are some premium skincare products for you:";
+      else if (category === 'wellness') opening = "Here are some wellness products for you:";
+    }
+    
     return {
       success: true,
       naturalResponse: {
-        opening: "Here are some luxury products I found for you:",
+        opening: opening,
         items: products.slice(0, 3).map(p => ({
           headline: p.title,
           price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,

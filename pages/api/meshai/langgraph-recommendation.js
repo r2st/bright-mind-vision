@@ -122,7 +122,17 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ LangGraph API error:', error);
-    console.error('Error stack:', error.stack);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Request details:', { message, quickReply, conversationId, customer });
+    
+    // Log specific error types
+    if (error.message) {
+      console.error('❌ Error message details:', error.message);
+    }
+    if (error.cause) {
+      console.error('❌ Error cause:', error.cause);
+    }
     
     // Ensure we always return valid JSON
     try {

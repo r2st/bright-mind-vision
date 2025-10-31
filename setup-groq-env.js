@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 const envContent = `# Groq API Configuration
-GROQ_API_KEY=your_groq_api_key_here
+LLM_GROQ_API_KEY=your_groq_api_key_here
 
 # Model Selection Strategy
 GROQ_PRIMARY_MODEL=llama-3.1-8b-instant
@@ -35,7 +35,7 @@ if (fs.existsSync(envPath)) {
   const existingContent = fs.readFileSync(envPath, 'utf8');
   
   // Check if Groq config already exists
-  if (existingContent.includes('GROQ_API_KEY')) {
+  if (existingContent.includes('LLM_GROQ_API_KEY')) {
     console.log('✅ Groq configuration already exists in .env.local');
   } else {
     // Append Groq config
@@ -50,7 +50,7 @@ if (fs.existsSync(envPath)) {
 
 console.log('\n📋 Next steps:');
 console.log('1. Get your Groq API key from: https://console.groq.com/keys');
-console.log('2. Update GROQ_API_KEY in .env.local');
+console.log('2. Update LLM_GROQ_API_KEY in .env.local');
 console.log('3. Run: node test-rag-system.js');
 console.log('4. Test the RAG API: curl -X POST http://localhost:3000/api/meshai/ai-recommendation-rag');
 

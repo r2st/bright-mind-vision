@@ -489,15 +489,23 @@ class EnhancedRAGService {
         {
           role: 'system',
           content: `You are a luxury shopping assistant for a high-end boutique in Dubai.
-          Generate a natural, engaging response that:
-          1. Acknowledges the user's query
-          2. Presents the recommended products in an appealing way
-          3. Uses the EXACT prices provided in the product data (already formatted as "amount AED")
-          4. Provides context-appropriate quick replies
-          5. Maintains a luxury, personalized tone
+          Generate a natural, engaging, and context-aware response that:
+          1. ACKNOWLEDGES the user's specific query in the opening message (e.g., if they asked for "bags", say "Here are some bags for you:" or "I've found some beautiful bags:")
+          2. Uses natural, conversational language that reflects what the user asked for
+          3. Presents the recommended products in an appealing way
+          4. Uses the EXACT prices provided in the product data (already formatted as "amount AED")
+          5. Provides context-appropriate quick replies
+          6. Maintains a luxury, personalized, and friendly tone
+          
+          IMPORTANT RULES FOR OPENING MESSAGE:
+          - If the user asks for "bags" or "handbags", say something like "Here are some beautiful bags for you:" or "I've curated some luxury handbags for you:"
+          - If they ask for "watches", say "Here are some exquisite watches:" or "I found some stunning timepieces for you:"
+          - If they ask for "skincare", say "Here are some premium skincare products:" or "I've selected some luxury skincare items for you:"
+          - Match the user's language and tone - be natural and conversational
+          - Never use generic phrases like "Here are some luxury products I found for you:" when the user was specific
           
           Format your response as JSON with:
-          - opening: Welcome message
+          - opening: Natural, context-aware welcome message that reflects the user's query
           - items: Array of product recommendations
           - cta: Call to action
           - quick_replies: Array of 3 quick reply options
@@ -508,13 +516,13 @@ class EnhancedRAGService {
         },
         {
           role: 'user',
-          content: `Query: "${query}"
+          content: `User Query: "${query}"
           Context: ${JSON.stringify(context)}
           
           Products to recommend (use EXACT price format):
           ${productList.map(p => `- ${p.title} by ${p.brand} - ${p.price} - ${p.description}`).join('\n')}
           
-          Generate a response using these products with their exact prices.`
+          Generate a natural, context-aware response. The opening message should acknowledge what the user specifically asked for. For example, if they asked for "bags", start with "Here are some bags for you:" or similar natural phrasing that matches their query.`
         }
       ], {
         model: this.pickNlgModel(query, productList, generationOptions),
@@ -554,12 +562,13 @@ class EnhancedRAGService {
         
         return parsed;
       } catch {
-        // Fallback response
-        return this.generateFallbackResponse(products, context);
+        // Fallback response - include query in context for better context-aware messages
+        return this.generateFallbackResponse(products, { ...context, query });
       }
     } catch (error) {
       console.error('Error generating response:', error);
-      return this.generateFallbackResponse(products, context);
+      // Fallback response - include query in context for better context-aware messages
+      return this.generateFallbackResponse(products, { ...context, query });
     }
   }
 
@@ -574,9 +583,40 @@ class EnhancedRAGService {
   }
 
   generateFallbackResponse(products, context) {
-    const opening = context.lastCategory 
-      ? `Here are some ${context.lastCategory} products for you:`
-      : "Here are some luxury products I found for you:";
+    // Generate context-aware opening
+    let opening = "Here are some luxury products I found for you:";
+    
+    if (context.lastCategory) {
+      const category = context.lastCategory.toLowerCase();
+      if (category.includes('bag') || category.includes('handbag')) {
+        opening = "Here are some beautiful bags for you:";
+      } else if (category.includes('watch')) {
+        opening = "Here are some exquisite watches for you:";
+      } else if (category.includes('jewelry') || category.includes('jewellery')) {
+        opening = "Here are some stunning jewelry pieces for you:";
+      } else if (category.includes('skincare') || category.includes('beauty')) {
+        opening = "Here are some premium skincare products for you:";
+      } else if (category.includes('wellness')) {
+        opening = "Here are some wellness products for you:";
+      } else {
+        opening = `Here are some ${context.lastCategory} products for you:`;
+      }
+    } else if (context.query) {
+      const query = context.query.toLowerCase();
+      if (query.includes('bag') || query.includes('handbag')) {
+        opening = "Here are some beautiful bags for you:";
+      } else if (query.includes('watch') || query.includes('timepiece')) {
+        opening = "Here are some exquisite watches for you:";
+      } else if (query.includes('jewelry') || query.includes('jewellery')) {
+        opening = "Here are some stunning jewelry pieces for you:";
+      } else if (query.includes('skincare') || query.includes('beauty')) {
+        opening = "Here are some premium skincare products for you:";
+      } else if (query.includes('wellness')) {
+        opening = "Here are some wellness products for you:";
+      } else if (query.includes('fragrance') || query.includes('perfume')) {
+        opening = "Here are some luxury fragrances for you:";
+      }
+    }
 
     const items = products.slice(0, 3).map((product, index) => {
       let priceAmount = 0;

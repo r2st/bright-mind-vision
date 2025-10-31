@@ -16,11 +16,11 @@ class LLMProvider {
     try {
       if (this.provider === 'groq') {
         this.groq = new Groq({
-          apiKey: process.env.LLM_GROQ_API_KEY || process.env.GROQ_API_KEY
+          apiKey: process.env.LLM_GROQ_API_KEY
         });
         console.log('✅ Groq LLM Provider initialized');
       } else if (this.provider === 'gemini') {
-        this.gemini = new GoogleGenerativeAI(process.env.LLM_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
+        this.gemini = new GoogleGenerativeAI(process.env.LLM_GEMINI_API_KEY);
         console.log('✅ Gemini LLM Provider initialized');
       } else {
         throw new Error(`Unsupported LLM provider: ${this.provider}`);
@@ -31,7 +31,7 @@ class LLMProvider {
       if (this.provider === 'gemini') {
         this.provider = 'groq';
         this.groq = new Groq({
-          apiKey: process.env.LLM_GROQ_API_KEY || process.env.GROQ_API_KEY
+          apiKey: process.env.LLM_GROQ_API_KEY
         });
         console.log('🔄 Fallback to Groq provider');
       }
@@ -41,8 +41,8 @@ class LLMProvider {
   ensureGeminiInitialized() {
     if (!this.gemini) {
       try {
-        const apiKey = process.env.LLM_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+        const apiKey = process.env.LLM_GEMINI_API_KEY;
+        if (!apiKey) throw new Error('LLM_GEMINI_API_KEY is not set');
         this.gemini = new GoogleGenerativeAI(apiKey);
         console.log('✅ Gemini LLM Provider initialized (lazy)');
       } catch (error) {
@@ -219,8 +219,8 @@ class LLMProvider {
     // Prefer Gemini embeddings if configured
     if (embeddingProvider === 'gemini') {
       try {
-        const apiKey = process.env.LLM_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+        const apiKey = process.env.LLM_GEMINI_API_KEY;
+        if (!apiKey) throw new Error('LLM_GEMINI_API_KEY is not set');
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${embeddingModel}:embedContent`;
         const resp = await fetch(url, {

@@ -1,7 +1,7 @@
 // Groq RAG Configuration
 export const GROQ_CONFIG = {
   // API Configuration
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.LLM_GROQ_API_KEY,
   
   // Model Selection Strategy
   models: {
