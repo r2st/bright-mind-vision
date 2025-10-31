@@ -208,29 +208,60 @@ const EcommerceChatBot = () => {
       // Check if response is ok before parsing
       if (!response.ok) {
         let errorText = '';
+        let errorData = null;
         try {
-          errorText = await response.text();
+          const responseText = await response.text();
           // Try to parse as JSON for better error message
           try {
-            const errorJson = JSON.parse(errorText);
-            if (errorJson.error) {
-              errorText = errorJson.error;
-            } else if (errorJson.message) {
-              errorText = errorJson.message;
+            errorData = JSON.parse(responseText);
+            console.error('❌ API Error Response (Full):', {
+              status: response.status,
+              statusText: response.statusText,
+              errorData: errorData,
+              rawResponse: responseText
+            });
+            
+            // Extract error information
+            if (errorData.error) {
+              errorText = errorData.error;
+            } else if (errorData.message) {
+              errorText = errorData.message;
+            } else {
+              errorText = responseText || `HTTP ${response.status}: ${response.statusText}`;
+            }
+            
+            // Store full error data for detailed logging
+            if (errorData.metadata) {
+              console.error('❌ Error Metadata:', errorData.metadata);
+            }
+            if (errorData.errorType) {
+              console.error('❌ Error Type:', errorData.errorType);
             }
           } catch {
             // Not JSON, use text as-is
+            errorText = responseText || `HTTP ${response.status}: ${response.statusText}`;
+            console.error('❌ API Error Response (Non-JSON):', {
+              status: response.status,
+              statusText: response.statusText,
+              rawResponse: responseText
+            });
           }
-        } catch {
+        } catch (e) {
           errorText = `HTTP ${response.status}: ${response.statusText}`;
+          console.error('❌ Failed to read error response:', e);
         }
-        console.error('API Error Response:', response.status, errorText);
         
         // For 400 errors, show more helpful message
         if (response.status === 400) {
           throw new Error(`Invalid request: ${errorText || 'Please check your input and try again.'}`);
         }
-        throw new Error(`Server error: ${response.status} ${errorText || response.statusText}`);
+        
+        // Include error data in the error for better debugging
+        const error = new Error(`Server error: ${response.status} ${errorText || response.statusText}`);
+        if (errorData) {
+          error.errorData = errorData;
+        }
+        throw error;
       }
 
       const data = await response.json();
@@ -338,9 +369,22 @@ const EcommerceChatBot = () => {
       } else if (error.message?.includes('Cannot send empty message') || error.message?.includes('Payload must have')) {
         errorText = "I need a message to help you. Please type something or select an option.";
       } else if (error.message?.includes('Server error')) {
-        // Extract detailed error information from the error message
+        // Extract detailed error information from the error message and error object
         const errorMatch = error.message.match(/Server error: (\d+) (.+)/);
-        if (errorMatch) {
+        
+        // Check if error has errorData attached (from our improved error handling)
+        if (error.errorData) {
+          console.error('❌ Server Error with Full Details:', {
+            error: error.errorData.error,
+            errorType: error.errorData.errorType,
+            metadata: error.errorData.metadata,
+            fullErrorData: error.errorData
+          });
+          
+          const errorMsg = error.errorData.error || 'Unknown error';
+          const errorType = error.errorData.errorType || '';
+          errorText = `Server error: ${errorMsg}${errorType ? ` (${errorType})` : ''}. Check console (F12) for full details.`;
+        } else if (errorMatch) {
           const [, status, details] = errorMatch;
           console.error('❌ Server Error Details:', { status, details, fullError: error });
           // Show error details with instructions to check console

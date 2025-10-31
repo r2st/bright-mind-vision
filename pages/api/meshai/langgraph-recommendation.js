@@ -4,11 +4,13 @@
 import { langGraphOrchestrator } from '../../../services/langGraphOrchestrator.js';
 import { memoryService } from '../../../services/memoryService.js';
 
-export default async function handler(req, res) {
+// Wrapper to ensure all errors return JSON
+async function handleRequest(req, res) {
   // Set CORS headers for mobile compatibility
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json'); // Always return JSON
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -151,19 +153,23 @@ export default async function handler(req, res) {
           cta: "How can I help you find luxury products?",
           quick_replies: ["Try again", "Get help", "Start over"]
         },
-        // Include metadata for debugging
+        // Include metadata for debugging (always include key info)
         metadata: {
           timestamp: new Date().toISOString(),
-          conversationId,
+          conversationId: conversationId || 'unknown',
           hasMessage: !!message,
           hasQuickReply: !!quickReply,
-          // Include environment info for debugging
-          ...(process.env.NODE_ENV !== 'production' && {
-            environment: process.env.NODE_ENV,
-            hasGroqKey: !!process.env.LLM_GROQ_API_KEY,
-            hasGeminiKey: !!process.env.LLM_GEMINI_API_KEY,
-            provider: process.env.LLM_PROVIDER || 'groq'
-          })
+          messageLength: message ? message.length : 0,
+          // Always include environment info for Netlify debugging
+          environment: process.env.NODE_ENV || 'unknown',
+          hasGroqKey: !!process.env.LLM_GROQ_API_KEY,
+          hasGeminiKey: !!process.env.LLM_GEMINI_API_KEY,
+          provider: process.env.LLM_PROVIDER || 'groq',
+          // Include a hint about what might be missing
+          diagnostics: {
+            apiKeysConfigured: !!(process.env.LLM_GROQ_API_KEY || process.env.LLM_GEMINI_API_KEY),
+            provider: process.env.LLM_PROVIDER || 'groq (default)'
+          }
         }
       };
       
@@ -171,7 +177,53 @@ export default async function handler(req, res) {
     } catch (jsonError) {
       // Fallback if JSON serialization fails
       console.error('Failed to send JSON response:', jsonError);
-      res.status(500).end('Internal server error');
+      res.status(500).json({
+        success: false,
+        error: 'Failed to serialize error response',
+        errorType: 'SerializationError',
+        naturalResponse: {
+          opening: "I encountered an error. Please try again.",
+          items: [],
+          cta: "How can I help you find luxury products?",
+          quick_replies: ["Try again", "Get help", "Start over"]
+        }
+      });
+    }
+  }
+}
+
+// Export with error wrapper to catch any unhandled errors
+export default async function handler(req, res) {
+  try {
+    await handleRequest(req, res);
+  } catch (unhandledError) {
+    // Catch any errors that escaped the main try-catch
+    console.error('❌❌❌ UNHANDLED ERROR (escaped try-catch):', unhandledError);
+    console.error('❌ Error stack:', unhandledError.stack);
+    
+    // Always return JSON, even for unhandled errors
+    try {
+      return res.status(500).json({
+        success: false,
+        error: unhandledError.message || 'Unhandled server error',
+        errorType: unhandledError.name || 'UnhandledError',
+        metadata: {
+          timestamp: new Date().toISOString(),
+          unhandled: true
+        },
+        naturalResponse: {
+          opening: "I encountered an unexpected error. Please try again.",
+          items: [],
+          cta: "How can I help you find luxury products?",
+          quick_replies: ["Try again", "Get help", "Start over"]
+        }
+      });
+    } catch {
+      // Absolute last resort - should never happen
+      res.status(500).end(JSON.stringify({
+        success: false,
+        error: 'Critical server error'
+      }));
     }
   }
 }
