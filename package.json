@@ -6,10 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "export": "next build && next export"
+    "export": "next build && next export",
+    "turso:init": "node scripts/init-turso-db.js",
+    "turso:migrate": "node scripts/migrate-turso-products.js",
+    "turso:embeddings": "node scripts/generate-turso-embeddings.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@libsql/client": "^0.15.15",
     "@netlify/plugin-nextjs": "^5.14.3",
     "@sqlite.org/sqlite-wasm": "^3.50.4-build1",
     "@vapi-ai/web": "^2.3.10",

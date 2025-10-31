@@ -1,5 +1,6 @@
 import { llmProvider } from './llmProvider.js';
 import { vectorDB } from './sqliteVectorDB.js';
+import { tursoVectorDB } from './tursoVectorDB.js';
 import { normalizedProductCatalog } from '../data/normalizedProductCatalog.js';
 
 /**
@@ -10,6 +11,49 @@ class EnhancedRAGService {
   constructor() {
     this.models = llmProvider.getModels();
     this.initialized = false;
+  }
+
+  // Helper method to get products - uses Turso → SQLite → Catalog fallback chain
+  async getAllProducts() {
+    // Priority 1: Try Turso (serverless-friendly, works on Netlify)
+    if (tursoVectorDB.isAvailable()) {
+      try {
+        const products = await tursoVectorDB.getAllProducts();
+        if (products && products.length > 0) {
+          return products;
+        }
+      } catch (error) {
+        console.warn('⚠️ RAG Service: Turso unavailable, trying SQLite fallback:', error.message);
+      }
+    }
+
+    // Priority 2: Try local SQLite (works locally)
+    try {
+      const dbProducts = vectorDB.getAllProducts();
+      if (dbProducts && dbProducts.length > 0) {
+        return dbProducts;
+      }
+    } catch (error) {
+      console.warn('⚠️ RAG Service: SQLite unavailable, using catalog fallback:', error.message);
+    }
+    
+    // Priority 3: Fallback to catalog when all databases unavailable
+    console.warn('⚠️ RAG Service: All databases unavailable, using product catalog directly');
+    return normalizedProductCatalog.map((product, index) => ({
+      id: index + 1,
+      sku: product.sku,
+      title: product.title,
+      brand: product.brand,
+      category: typeof product.category === 'string' ? product.category : JSON.stringify(product.category || []),
+      subcategory: product.subcategory || null,
+      price: typeof product.price === 'object' ? product.price.amount : product.price,
+      currency: typeof product.price === 'object' ? product.price.currency : (product.currency || 'AED'),
+      description: product.description || '',
+      tags: typeof product.tags === 'string' ? product.tags : JSON.stringify(product.tags || []),
+      rating: product.rating || 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
   }
 
   async initialize() {
@@ -29,7 +73,37 @@ class EnhancedRAGService {
       }
       
       this.initialized = true;
-      console.log(`✅ Enhanced RAG Service initialized with ${vectorDB.getProductCount()} products`);
+      
+      // Log product count from available database
+      let finalCount = 0;
+      let dbType = 'Catalog';
+      
+      if (tursoVectorDB.isAvailable()) {
+        try {
+          finalCount = await tursoVectorDB.getProductCount();
+          dbType = 'Turso';
+        } catch (error) {
+          console.warn('⚠️ Could not get Turso count, trying SQLite:', error.message);
+        }
+      }
+      
+      if (finalCount === 0 && vectorDB) {
+        try {
+          finalCount = vectorDB.getProductCount();
+          if (finalCount > 0) {
+            dbType = 'SQLite';
+          }
+        } catch (error) {
+          // Fallback to catalog
+        }
+      }
+      
+      if (finalCount === 0 || isNaN(finalCount)) {
+        finalCount = normalizedProductCatalog.length;
+        dbType = 'Catalog (fallback)';
+      }
+      
+      console.log(`✅ Enhanced RAG Service initialized with ${finalCount} products (${dbType})`);
     } catch (error) {
       console.error('❌ Enhanced RAG Service initialization failed:', error);
     }
@@ -47,8 +121,8 @@ class EnhancedRAGService {
   }
 
   async syncNewProducts() {
-    // Get all existing SKUs from database
-    const existingProducts = vectorDB.getAllProducts();
+    // Get all existing SKUs from database (or catalog if DB unavailable)
+    const existingProducts = await this.getAllProducts(); // Now async
     const existingSkus = new Set(existingProducts.map(p => p.sku));
     
     // Find new products not in DB
@@ -218,8 +292,13 @@ class EnhancedRAGService {
       // Search by price range
       products = await this.searchByPrice(query);
     } else {
-      // Fallback to text search
-      products = vectorDB.searchProducts(query);
+      // Fallback to text search - use catalog if DB unavailable
+      const dbProducts = vectorDB.searchProducts(query);
+      if (dbProducts && dbProducts.length > 0) {
+        products = dbProducts;
+      } else {
+        products = this.searchProductsInCatalog(query);
+      }
     }
 
     return products.slice(0, 5); // Return top 5 results
@@ -251,7 +330,7 @@ class EnhancedRAGService {
 
   async strictCategorySearch(query, context) {
     const queryLower = query.toLowerCase();
-    const allProducts = vectorDB.getAllProducts();
+    const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
     const debug = process.env.DEBUG_RAG === 'true';
     
     // Priority: Use explicit category from context if provided (performance optimization)
@@ -277,8 +356,22 @@ class EnhancedRAGService {
     let filteredProducts = allProducts;
     if (targetCategory) {
       filteredProducts = allProducts.filter(product => {
-        const productCategories = JSON.parse(product.category).join(' ').toLowerCase();
-        const title = product.title.toLowerCase();
+        // Safety check - skip products with missing required fields
+        if (!product || !product.title) {
+          return false;
+        }
+        
+        // Safely parse category - handle both string and already parsed
+        let categoryArray;
+        try {
+          categoryArray = typeof product.category === 'string' 
+            ? JSON.parse(product.category) 
+            : (Array.isArray(product.category) ? product.category : []);
+        } catch (e) {
+          categoryArray = [];
+        }
+        const productCategories = categoryArray.join(' ').toLowerCase();
+        const title = (product.title || '').toLowerCase();
         
         // Strict category matching
         if (targetCategory === 'handbags') {
@@ -315,10 +408,26 @@ class EnhancedRAGService {
     
     // Score the filtered products
     const scoredProducts = filteredProducts.map(product => {
+      // Safety check
+      if (!product || !product.title || !product.brand) {
+        return { ...product, score: 0 };
+      }
+      
       let score = 0;
-      const title = product.title.toLowerCase();
-      const brand = product.brand.toLowerCase();
-      const category = JSON.parse(product.category).join(' ').toLowerCase();
+      const title = (product.title || '').toLowerCase();
+      const brand = (product.brand || '').toLowerCase();
+      
+      // Safely parse category
+      let category = '';
+      try {
+        const catArray = typeof product.category === 'string' 
+          ? JSON.parse(product.category) 
+          : (Array.isArray(product.category) ? product.category : []);
+        category = catArray.join(' ').toLowerCase();
+      } catch (e) {
+        category = '';
+      }
+      
       const description = (product.description || '').toLowerCase();
       
       // Category-specific scoring (higher weight for matching categories)
@@ -355,14 +464,21 @@ class EnhancedRAGService {
       
       // Context boost
       if (context.lastCategory) {
-        const productCategories = JSON.parse(product.category);
+        let productCategories;
+        try {
+          productCategories = typeof product.category === 'string'
+            ? JSON.parse(product.category)
+            : (Array.isArray(product.category) ? product.category : []);
+        } catch (e) {
+          productCategories = [];
+        }
         if (productCategories.some(cat => cat.toLowerCase().includes(context.lastCategory.toLowerCase()))) {
           score += 2;
         }
       }
       
       // Rating boost
-      score += product.rating * 0.5;
+      score += (product.rating || 0) * 0.5;
       
       return { ...product, score };
     });
@@ -378,12 +494,15 @@ class EnhancedRAGService {
       const queryEmbedding = await this.generateEmbedding(query);
       
       // Get all products with embeddings
-      const allProducts = vectorDB.getAllProducts();
+      const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
       const scoredProducts = [];
 
+      // Try semantic search with embeddings if available
+      let hasEmbeddings = false;
       for (const product of allProducts) {
         const embeddings = vectorDB.getEmbeddings(product.id);
         if (embeddings.length === 0) continue;
+        hasEmbeddings = true;
 
         // Calculate similarity score
         let maxSimilarity = 0;
@@ -395,7 +514,14 @@ class EnhancedRAGService {
         // Apply context filtering
         let contextScore = 1;
         if (context.lastCategory) {
-          const productCategories = JSON.parse(product.category);
+          let productCategories;
+          try {
+            productCategories = typeof product.category === 'string'
+              ? JSON.parse(product.category)
+              : (Array.isArray(product.category) ? product.category : []);
+          } catch (e) {
+            productCategories = [];
+          }
           if (productCategories.some(cat => cat.toLowerCase().includes(context.lastCategory.toLowerCase()))) {
             contextScore = 1.2; // Boost score for context-relevant products
           }
@@ -405,6 +531,12 @@ class EnhancedRAGService {
           ...product,
           similarity: maxSimilarity * contextScore
         });
+      }
+
+      // If no embeddings available, fall back to catalog search
+      if (!hasEmbeddings) {
+        console.warn('⚠️ No embeddings available, falling back to catalog search');
+        return this.searchProductsInCatalog(query).slice(0, 5);
       }
 
       // Sort by similarity score
@@ -419,7 +551,7 @@ class EnhancedRAGService {
   }
 
   async searchByBrand(query) {
-    const allProducts = vectorDB.getAllProducts();
+    const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
     const queryLower = query.toLowerCase();
     
     return allProducts.filter(product => 
@@ -434,13 +566,47 @@ class EnhancedRAGService {
       const minPrice = parseInt(priceMatch[1]);
       const maxPrice = parseInt(priceMatch[2]);
       
-      const allProducts = vectorDB.getAllProducts();
-      return allProducts.filter(product => 
-        product.price >= minPrice && product.price <= maxPrice
-      ).sort((a, b) => b.rating - a.rating);
+      const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
+      return allProducts.filter(product => {
+        const price = typeof product.price === 'object' ? product.price.amount : product.price;
+        return price >= minPrice && price <= maxPrice;
+      }).sort((a, b) => {
+        const ratingA = a.rating || 0;
+        const ratingB = b.rating || 0;
+        return ratingB - ratingA;
+      });
     }
     
-    return vectorDB.searchProducts(query);
+    // Fallback to text search
+    return this.searchProductsInCatalog(query);
+  }
+
+  // Search products in catalog when database is unavailable
+  async searchProductsInCatalog(query) {
+    const queryLower = query.toLowerCase();
+    const allProducts = await this.getAllProducts();
+    
+    return allProducts.filter(product => {
+      const title = product.title.toLowerCase();
+      const description = (product.description || '').toLowerCase();
+      const brand = product.brand.toLowerCase();
+      const category = typeof product.category === 'string' 
+        ? product.category 
+        : JSON.stringify(product.category || []).toLowerCase();
+      const tags = typeof product.tags === 'string'
+        ? product.tags
+        : JSON.stringify(product.tags || []).toLowerCase();
+      
+      return title.includes(queryLower) ||
+             description.includes(queryLower) ||
+             brand.includes(queryLower) ||
+             category.includes(queryLower) ||
+             tags.includes(queryLower);
+    }).sort((a, b) => {
+      const ratingA = a.rating || 0;
+      const ratingB = b.rating || 0;
+      return ratingB - ratingA;
+    });
   }
 
   cosineSimilarity(a, b) {
