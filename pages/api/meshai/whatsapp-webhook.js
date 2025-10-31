@@ -424,7 +424,8 @@ async function triggerAIIntegratedRecommendation(messageData) {
       await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
     }
     
-    // Quick reply handling
+    // Quick reply handling - initialize filteredProducts
+    let filteredProducts = [];
     if (quickReply || /^[1-4]$/.test(message)) {
       const quickReplyNumber = parseInt(message);
       console.log(`📱 Quick reply detected: ${quickReplyNumber}`);
@@ -522,7 +523,7 @@ async function triggerAIIntegratedRecommendation(messageData) {
     
     // Generate response
     const quickReplyNumber = quickReply || (/^[1-4]$/.test(message) ? parseInt(message) : null);
-    const response = {
+    const recommendationResponse = {
       success: true,
       naturalResponse: {
         opening: generateOpening(message, topProducts.length, quickReplyNumber),
@@ -552,8 +553,8 @@ async function triggerAIIntegratedRecommendation(messageData) {
 
     console.log('✅ Generated response with', topProducts.length, 'products');
     
-    if (response.success && response.naturalResponse) {
-      const formattedMessage = formatProductionResponse(response.naturalResponse);
+    if (recommendationResponse.success && recommendationResponse.naturalResponse) {
+      const formattedMessage = formatProductionResponse(recommendationResponse.naturalResponse);
       await sendWhatsAppMessage(messageData.from, formattedMessage);
     } else {
       await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
