@@ -905,7 +905,7 @@ class LangGraphOrchestrator {
         items: products.slice(0, 3).map(p => ({
           headline: p.title,
           price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
-          one_liner: p.description?.substring(0, 60) + '...' || 'Luxury product',
+          one_liner: p.description || 'Luxury product',
           image: '🛍️'
         })),
         cta: "Which product interests you most?",
@@ -945,7 +945,7 @@ class LangGraphOrchestrator {
             items: top.map(p => ({
               headline: p.title,
               price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
-              one_liner: (p.description || '').substring(0, 60) + '...' || 'Luxury product',
+              one_liner: p.description || 'Luxury product',
               image: '🛍️'
             })),
             cta: 'Which product interests you most?',
@@ -1034,7 +1034,7 @@ class LangGraphOrchestrator {
           items: top.map(p => ({
             headline: p.title,
             price: `${p.price?.amount || p.price || 0} ${p.price?.currency || 'AED'}`,
-            one_liner: (p.description || '').substring(0, 60) + '...' || 'Luxury product',
+            one_liner: p.description || 'Luxury product',
             image: '🛍️'
           })),
           cta: 'Which product interests you most?',

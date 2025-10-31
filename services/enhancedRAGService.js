@@ -504,7 +504,7 @@ class EnhancedRAGService {
           
           Each item should have: headline, price (use the exact price from product data), one_liner, image (emoji)
           IMPORTANT: Use the exact price format provided in the product data. Do not modify or reformat prices.
-          Keep responses concise but engaging.`
+          For one_liner: Provide a descriptive, engaging product description (up to 200 characters). Include key features and benefits to help customers make informed decisions.`
         },
         {
           role: 'user',
@@ -593,7 +593,7 @@ class EnhancedRAGService {
       return {
         headline: product.title,
         price: `${priceAmount} ${priceCurrency}`,
-        one_liner: product.description?.substring(0, 60) + '...' || 'Luxury product',
+        one_liner: product.description || 'Luxury product',
         image: '🛍️'
       };
     });
