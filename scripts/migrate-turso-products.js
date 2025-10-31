@@ -19,11 +19,25 @@ function loadEnv() {
   if (existsSync(envPath)) {
     const envContent = readFileSync(envPath, 'utf-8');
     envContent.split('\n').forEach(line => {
-      const match = line.match(/^([^=:#]+)=(.*)$/);
+      // Skip comments and empty lines
+      const cleanLine = line.trim();
+      if (!cleanLine || cleanLine.startsWith('#')) return;
+      
+      const match = cleanLine.match(/^([^=]+)=(.*)$/);
       if (match) {
         const key = match[1].trim();
-        const value = match[2].trim().replace(/^["']|["']$/g, '');
-        if (!process.env[key]) {
+        let value = match[2].trim();
+        
+        // Remove quotes if present
+        value = value.replace(/^["']|["']$/g, '');
+        
+        // Remove inline comments (everything after #)
+        const commentIndex = value.indexOf(' #');
+        if (commentIndex > 0) {
+          value = value.substring(0, commentIndex).trim();
+        }
+        
+        if (!process.env[key] && value) {
           process.env[key] = value;
         }
       }

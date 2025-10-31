@@ -19,11 +19,25 @@ function loadEnv() {
   if (existsSync(envPath)) {
     const envContent = readFileSync(envPath, 'utf-8');
     envContent.split('\n').forEach(line => {
-      const match = line.match(/^([^=:#]+)=(.*)$/);
+      // Skip comments and empty lines
+      const cleanLine = line.trim();
+      if (!cleanLine || cleanLine.startsWith('#')) return;
+      
+      const match = cleanLine.match(/^([^=]+)=(.*)$/);
       if (match) {
         const key = match[1].trim();
-        const value = match[2].trim().replace(/^["']|["']$/g, '');
-        if (!process.env[key]) {
+        let value = match[2].trim();
+        
+        // Remove quotes if present
+        value = value.replace(/^["']|["']$/g, '');
+        
+        // Remove inline comments (everything after #)
+        const commentIndex = value.indexOf(' #');
+        if (commentIndex > 0) {
+          value = value.substring(0, commentIndex).trim();
+        }
+        
+        if (!process.env[key] && value) {
           process.env[key] = value;
         }
       }
@@ -41,26 +55,21 @@ if (!databaseUrl || !authToken) {
   process.exit(1);
 }
 
-// Import embedding service (from enhancedRAGService)
+// Generate embedding using LLM provider
 async function generateEmbedding(text) {
-  // This would use your LLM provider to generate embeddings
-  // For now, we'll import the actual service
   try {
     const { llmProvider } = await import('../services/llmProvider.js');
     
-    // Use the embedding model
-    const embeddingModel = llmProvider.getModels().embedding;
+    // Use the LLM provider's embedding method
+    const embedding = await llmProvider.generateEmbedding(text);
     
-    if (!embeddingModel) {
-      throw new Error('Embedding model not configured');
+    if (Array.isArray(embedding) && embedding.length > 0) {
+      return embedding;
     }
-
-    // Generate embedding (implementation depends on your LLM provider)
-    // This is a placeholder - adjust based on your actual embedding generation
-    console.warn('⚠️  Embedding generation needs to be implemented based on your LLM provider');
-    return null;
+    
+    throw new Error('Embedding generation returned empty or invalid result');
   } catch (error) {
-    console.error('Error generating embedding:', error);
+    console.error('Error generating embedding:', error.message);
     return null;
   }
 }
@@ -75,14 +84,35 @@ async function generateEmbeddings() {
   });
 
   try {
-    // Get all products
-    const productsResult = await client.execute('SELECT id, sku, title, description FROM products');
-    const products = productsResult.rows.map(row => ({
-      id: row[0],
-      sku: row[1],
-      title: row[2],
-      description: row[3] || ''
-    }));
+    // Get all products with full details
+    const productsResult = await client.execute(`
+      SELECT id, sku, title, brand, category, description, tags 
+      FROM products 
+      ORDER BY id
+    `);
+    
+    // Parse rows to objects (Turso returns rows as arrays)
+    const products = productsResult.rows.map(row => {
+      // Parse category if it's a JSON string
+      let category = row[4] || '[]';
+      try {
+        if (typeof category === 'string') {
+          category = JSON.parse(category);
+        }
+      } catch (e) {
+        category = [];
+      }
+      
+      return {
+        id: row[0],
+        sku: row[1],
+        title: row[2] || '',
+        brand: row[3] || '',
+        category: category,
+        description: row[5] || '',
+        tags: row[6] || '[]'
+      };
+    });
 
     console.log(`📦 Found ${products.length} products to process\n`);
 
@@ -106,29 +136,60 @@ async function generateEmbeddings() {
         }
 
         // Generate embeddings
-        console.log(`🔄 [${processedCount + 1}/${products.length}] Generating embeddings for ${product.sku}...`);
+        console.log(`🔄 [${processedCount + 1}/${products.length}] Generating embeddings for ${product.sku}: ${product.title.substring(0, 40)}...`);
         
-        // TODO: Implement actual embedding generation
-        // For now, this is a placeholder
-        console.warn('⚠️  Embedding generation not yet implemented - needs LLM provider integration');
+        // Generate title embedding
+        const titleEmbedding = await generateEmbedding(product.title);
+        if (titleEmbedding) {
+          await client.execute({
+            sql: 'INSERT OR REPLACE INTO embeddings (product_id, embedding_type, embedding) VALUES (?, ?, ?)',
+            args: [product.id, 'title', JSON.stringify(titleEmbedding)]
+          });
+          process.stdout.write('  ✓ Title embedding');
+        }
         
-        // Example structure (when implemented):
-        // const titleEmbedding = await generateEmbedding(product.title);
-        // const descEmbedding = await generateEmbedding(product.description);
-        // const combinedText = `${product.title} ${product.description}`;
-        // const combinedEmbedding = await generateEmbedding(combinedText);
+        // Generate description embedding (if available)
+        if (product.description && product.description.trim()) {
+          const descEmbedding = await generateEmbedding(product.description);
+          if (descEmbedding) {
+            await client.execute({
+              sql: 'INSERT OR REPLACE INTO embeddings (product_id, embedding_type, embedding) VALUES (?, ?, ?)',
+              args: [product.id, 'description', JSON.stringify(descEmbedding)]
+            });
+            process.stdout.write(' ✓ Description embedding');
+          }
+        }
         
-        // Store embeddings
-        // await client.execute({
-        //   sql: 'INSERT INTO embeddings (product_id, embedding_type, embedding) VALUES (?, ?, ?)',
-        //   args: [product.id, 'title', JSON.stringify(titleEmbedding)]
-        // });
-        // ... etc
-
+        // Generate combined embedding (most useful for search)
+        // Include title, description, brand, category for comprehensive search
+        let categoryText = '';
+        try {
+          const categoryArray = typeof product.category === 'string' 
+            ? JSON.parse(product.category) 
+            : (Array.isArray(product.category) ? product.category : []);
+          categoryText = Array.isArray(categoryArray) ? categoryArray.join(' ') : '';
+        } catch (e) {
+          categoryText = '';
+        }
+        
+        const combinedText = `${product.title} ${product.brand} ${categoryText} ${product.description || ''}`.trim();
+        if (combinedText) {
+          const combinedEmbedding = await generateEmbedding(combinedText);
+          if (combinedEmbedding) {
+            await client.execute({
+              sql: 'INSERT OR REPLACE INTO embeddings (product_id, embedding_type, embedding) VALUES (?, ?, ?)',
+              args: [product.id, 'combined', JSON.stringify(combinedEmbedding)]
+            });
+            process.stdout.write(' ✓ Combined embedding');
+          }
+        }
+        
+        console.log(''); // New line after all embeddings
         processedCount++;
         
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Rate limiting (respect API limits)
+        // Gemini: 60 requests/minute, Groq: varies
+        await new Promise(resolve => setTimeout(resolve, 150));
         
       } catch (error) {
         errorCount++;
@@ -136,12 +197,27 @@ async function generateEmbeddings() {
       }
     }
 
+    // Verify embeddings were stored
+    const embeddingCountResult = await client.execute({
+      sql: 'SELECT COUNT(*) as count FROM embeddings'
+    });
+    const embeddingCount = embeddingCountResult.rows[0]?.[0] || 0;
+    
     console.log(`\n📊 Embedding Generation Summary:`);
     console.log(`   ✅ Processed: ${processedCount}`);
     console.log(`   ❌ Errors: ${errorCount}`);
+    console.log(`   📦 Embeddings in database: ${embeddingCount}`);
 
-    console.log('\n⚠️  Note: This script needs embedding generation to be implemented');
-    console.log('   Integrate with your LLM provider (Groq/Gemini) to generate actual embeddings');
+    if (embeddingCount > 0) {
+      console.log('\n✅ Embeddings successfully generated and stored in Turso!');
+      console.log('💡 Vector search is now enabled for your products.');
+      console.log(`   You have ${embeddingCount} embeddings ready for semantic search.`);
+    } else {
+      console.log('\n⚠️  No embeddings were stored. Check LLM provider configuration.');
+      console.log('   Make sure LLM_EMBEDDING_PROVIDER is set (gemini recommended)');
+      console.log('   And LLM_GEMINI_API_KEY is configured for embeddings.');
+      console.log('   Note: If LLM_PROVIDER has inline comments, they will be stripped automatically.');
+    }
 
   } catch (error) {
     console.error('❌ Error generating embeddings:', error);

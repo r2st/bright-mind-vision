@@ -340,7 +340,8 @@ class TursoVectorDB {
     }
   }
 
-  // Vector similarity search (when libSQL vector extension is enabled)
+  // Vector similarity search using client-side cosine similarity
+  // Works with embeddings stored as JSON strings (current implementation)
   async vectorSearch(queryEmbedding, limit = 5) {
     if (!this.isAvailable()) {
       console.warn('⚠️ Turso: Client not initialized, returning empty array');
@@ -348,15 +349,66 @@ class TursoVectorDB {
     }
 
     try {
-      // Note: This requires libSQL vector extension
-      // For now, fallback to regular search
-      // TODO: Implement when vector extension is available
-      console.warn('⚠️ Vector search not yet implemented - requires libSQL vector extension');
-      return [];
+      // Get all products with their embeddings
+      const products = await this.getAllProducts();
+      const scoredProducts = [];
+
+      for (const product of products) {
+        const embeddings = await this.getEmbeddings(product.id);
+        
+        if (embeddings.length === 0) continue;
+
+        // Find best matching embedding (use 'combined' if available, else any)
+        let maxSimilarity = 0;
+        const combinedEmbedding = embeddings.find(e => e.type === 'combined');
+        const embeddingToUse = combinedEmbedding || embeddings[0];
+
+        if (embeddingToUse && embeddingToUse.embedding) {
+          const similarity = this.cosineSimilarity(queryEmbedding, embeddingToUse.embedding);
+          maxSimilarity = Math.max(maxSimilarity, similarity);
+        }
+
+        if (maxSimilarity > 0) {
+          scoredProducts.push({
+            ...product,
+            similarity: maxSimilarity
+          });
+        }
+      }
+
+      // Sort by similarity and return top results
+      return scoredProducts
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
     } catch (error) {
       console.error('Error in vector search:', error);
+      // Fallback to text search
       return [];
     }
+  }
+
+  // Cosine similarity calculation for vector search
+  cosineSimilarity(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return 0;
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      const ai = Number(a[i]) || 0;
+      const bi = Number(b[i]) || 0;
+      dotProduct += ai * bi;
+      normA += ai * ai;
+      normB += bi * bi;
+    }
+
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) return 0;
+
+    return dotProduct / denominator;
   }
 
   // Clear all data

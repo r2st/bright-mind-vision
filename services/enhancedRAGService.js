@@ -1,6 +1,8 @@
 import { llmProvider } from './llmProvider.js';
 import { vectorDB } from './sqliteVectorDB.js';
 import { tursoVectorDB } from './tursoVectorDB.js';
+import { pineconeVectorDB } from './pineconeVectorDB.js';
+import { synonymService } from './synonymService.js';
 import { normalizedProductCatalog } from '../data/normalizedProductCatalog.js';
 
 /**
@@ -268,6 +270,10 @@ class EnhancedRAGService {
   async searchProducts(query, context = {}) {
     await this.initialize();
 
+    // Expand query with synonyms for better matching
+    const expandedQueries = synonymService.expandQuery(query);
+    const primaryQuery = query;
+    
     // Performance optimization: Skip intent classification if we have explicit category context
     if (context.lastCategory && context.skipIntentClassification) {
       const products = await this.strictCategorySearch(context.lastCategory, context);
@@ -283,10 +289,10 @@ class EnhancedRAGService {
       // For searchProducts, return no products for non-product intents
       return [];
     } else if (intent === 'product_search' || intent === 'category_browse') {
-      // Use strict category search for better filtering
-      products = await this.strictCategorySearch(query, context);
+      // Use strict category search for better filtering (with synonym expansion)
+      products = await this.strictCategorySearch(query, { ...context, expandedQueries });
     } else if (intent === 'brand_inquiry') {
-      // Search by brand
+      // Search by brand (with synonyms)
       products = await this.searchByBrand(query);
     } else if (intent === 'price_inquiry') {
       // Search by price range
@@ -448,19 +454,37 @@ class EnhancedRAGService {
         if (title.includes('wellness') || title.includes('health') || title.includes('spa') || title.includes('relaxation') || title.includes('candle') || title.includes('bath')) score += 15;
       }
       
-      // General matching
-      if (title.includes(queryLower)) score += 10;
-      if (brand.includes(queryLower)) score += 8;
-      if (category.includes(queryLower)) score += 6;
-      if (description.includes(queryLower)) score += 4;
+      // General matching (with synonym expansion)
+      const expandedQueries = context.expandedQueries || [queryLower];
       
-      // Word-by-word matching
+      expandedQueries.forEach(expandedQuery => {
+        if (title.includes(expandedQuery)) score += 10;
+        if (brand.includes(expandedQuery)) score += 8;
+        if (category.includes(expandedQuery)) score += 6;
+        if (description.includes(expandedQuery)) score += 4;
+      });
+      
+      // Word-by-word matching with synonyms
       const queryWords = queryLower.split(/\s+/);
       queryWords.forEach(word => {
+        // Check exact match
         if (title.includes(word)) score += 3;
         if (brand.includes(word)) score += 2;
         if (category.includes(word)) score += 1;
+        
+        // Check synonym matches
+        const synonyms = synonymService.getSynonyms(word);
+        synonyms.forEach(synonym => {
+          if (synonym !== word) { // Don't double-count
+            if (title.includes(synonym)) score += 2; // Slightly less than exact match
+            if (brand.includes(synonym)) score += 1.5;
+            if (category.includes(synonym)) score += 0.5;
+          }
+        });
       });
+      
+      // Apply synonym service score enhancement
+      score = synonymService.enhanceScore(product, queryLower, score);
       
       // Context boost
       if (context.lastCategory) {
@@ -493,14 +517,64 @@ class EnhancedRAGService {
       // Generate query embedding
       const queryEmbedding = await this.generateEmbedding(query);
       
-      // Get all products with embeddings
-      const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
+      // Priority 1: Try Pinecone (best performance for vector search)
+      if (pineconeVectorDB.isAvailable()) {
+        try {
+          const pineconeResults = await pineconeVectorDB.vectorSearch(queryEmbedding, 5);
+          if (pineconeResults && pineconeResults.length > 0) {
+            console.log('✅ Using Pinecone vector search');
+            // Fetch full product data from Turso using product IDs
+            const productIds = pineconeResults.map(r => r.productId);
+            const allProducts = await this.getAllProducts();
+            const products = productIds.map(id => allProducts.find(p => p.id == id || p.sku === id)).filter(Boolean);
+            return products.map((product, index) => ({
+              ...product,
+              similarity: pineconeResults[index]?.similarity || 0
+            }));
+          }
+        } catch (error) {
+          console.warn('⚠️ Pinecone vector search failed, trying Turso:', error.message);
+        }
+      }
+      
+      // Priority 2: Try vector search from Turso (if available)
+      if (tursoVectorDB.isAvailable()) {
+        try {
+          const vectorResults = await tursoVectorDB.vectorSearch(queryEmbedding, 5);
+          if (vectorResults && vectorResults.length > 0) {
+            console.log('✅ Using Turso vector search');
+            return vectorResults;
+          }
+        } catch (error) {
+          console.warn('⚠️ Turso vector search failed, trying fallback:', error.message);
+        }
+      }
+      
+      // Fallback: Manual semantic search with SQLite or catalog
+      const allProducts = await this.getAllProducts();
       const scoredProducts = [];
-
-      // Try semantic search with embeddings if available
+      
+      // Check if we have embeddings (try SQLite first)
       let hasEmbeddings = false;
       for (const product of allProducts) {
-        const embeddings = vectorDB.getEmbeddings(product.id);
+        let embeddings = [];
+        
+        // Try to get embeddings from SQLite (local)
+        try {
+          embeddings = vectorDB.getEmbeddings(product.id);
+        } catch (e) {
+          // SQLite not available or no embeddings
+        }
+        
+        // Try Turso embeddings if SQLite had none
+        if (embeddings.length === 0 && tursoVectorDB.isAvailable()) {
+          try {
+            embeddings = await tursoVectorDB.getEmbeddings(product.id);
+          } catch (e) {
+            // Turso embeddings not available
+          }
+        }
+        
         if (embeddings.length === 0) continue;
         hasEmbeddings = true;
 
