@@ -317,26 +317,22 @@ const EcommerceChatBot = () => {
         const errorMsg = data.error || "I'm having trouble processing your request right now. Please try again in a moment.";
         const errorType = data.errorType || 'Unknown error';
         
-        // Log detailed error information to console for debugging
-        console.error('❌ API Error Details:', {
-          error: data.error,
-          errorType: data.errorType,
-          metadata: data.metadata,
-          fullResponse: data
-        });
-        
-        // Show detailed error in UI for debugging
-        // Always show error details if available (helps with Netlify debugging)
-        if (data.error && data.error.length < 150) {
-          botResponse = `Error: ${errorMsg}${errorType && errorType !== 'Error' ? ` (${errorType})` : ''}. Check browser console (F12) for full details.`;
-        } else if (errorType && errorType !== 'Error') {
-          botResponse = `I encountered an error (${errorType}). Please check the browser console (F12) for details.`;
-        } else {
-          botResponse = `${errorMsg} Check browser console (F12) for details.`;
+        // Comprehensive error logging for debugging - print all details
+        console.error('========================================');
+        console.error('❌ API ERROR RESPONSE - FULL DETAILS');
+        console.error('========================================');
+        console.error('❌ Error:', data.error);
+        console.error('❌ Error Type:', data.errorType || 'Unknown');
+        console.error('❌ Metadata:', JSON.stringify(data.metadata, null, 2));
+        if (data.stack) {
+          console.error('❌ Stack Trace:', data.stack);
         }
+        console.error('❌ Full Response:', JSON.stringify(data, null, 2));
+        console.error('========================================');
         
-        // Always log to console for debugging
-        console.error('❌ Full error response from API:', data);
+        // Show human-friendly error in UI, but log detailed info to console
+        // Keep UI message friendly and natural
+        botResponse = "I'm sorry, I'm having a bit of trouble right now. Please try again in a moment. If the issue persists, feel free to contact support.";
       }
 
       const botMessage = {
@@ -348,15 +344,17 @@ const EcommerceChatBot = () => {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      // Log comprehensive error information for debugging
-      console.error('❌ Error sending message:', {
-        error: error,
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-        response: error.response,
-        timestamp: new Date().toISOString()
-      });
+      // Comprehensive error logging for debugging - print all details
+      console.error('========================================');
+      console.error('❌ FETCH ERROR - FULL DETAILS');
+      console.error('========================================');
+      console.error('❌ Error Object:', error);
+      console.error('❌ Error Type:', error.name || 'Unknown');
+      console.error('❌ Error Message:', error.message || 'No message');
+      console.error('❌ Error Stack:', error.stack || 'No stack trace');
+      console.error('❌ Response:', error.response);
+      console.error('❌ Timestamp:', new Date().toISOString());
+      console.error('========================================');
       
       // Provide more specific error messages
       let errorText = "I'm having trouble connecting to the server. Please try again in a moment.";
@@ -374,16 +372,22 @@ const EcommerceChatBot = () => {
         
         // Check if error has errorData attached (from our improved error handling)
         if (error.errorData) {
-          console.error('❌ Server Error with Full Details:', {
-            error: error.errorData.error,
-            errorType: error.errorData.errorType,
-            metadata: error.errorData.metadata,
-            fullErrorData: error.errorData
-          });
+          // Comprehensive error logging for debugging - print all details
+          console.error('========================================');
+          console.error('❌ SERVER ERROR - FULL DETAILS');
+          console.error('========================================');
+          console.error('❌ Error:', error.errorData.error);
+          console.error('❌ Error Type:', error.errorData.errorType);
+          console.error('❌ Metadata:', JSON.stringify(error.errorData.metadata, null, 2));
+          console.error('❌ Full Error Data:', JSON.stringify(error.errorData, null, 2));
+          console.error('❌ Stack:', error.stack);
+          if (error.errorData.metadata?.diagnostics) {
+            console.error('❌ Diagnostics:', JSON.stringify(error.errorData.metadata.diagnostics, null, 2));
+          }
+          console.error('========================================');
           
-          const errorMsg = error.errorData.error || 'Unknown error';
-          const errorType = error.errorData.errorType || '';
-          errorText = `Server error: ${errorMsg}${errorType ? ` (${errorType})` : ''}. Check console (F12) for full details.`;
+          // Show human-friendly message in UI
+          errorText = "I'm having trouble processing your request right now. Please try again in a moment.";
         } else if (errorMatch) {
           const [, status, details] = errorMatch;
           console.error('❌ Server Error Details:', { status, details, fullError: error });

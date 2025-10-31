@@ -50,7 +50,21 @@ async function handleRequest(req, res) {
       }
     }
 
-    const { message, quickReply, context, customerId } = body;
+    // Validate body exists
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request body',
+        naturalResponse: {
+          opening: "I'm sorry, I encountered an error. Please try again.",
+          items: [],
+          cta: "How can I help you find luxury products?",
+          quick_replies: ["Try again", "Get help", "Start over"]
+        }
+      });
+    }
+
+    const { message, quickReply, context, customerId } = body || {};
     
     if (!message && !quickReply) {
       return res.status(400).json({ 
@@ -83,7 +97,7 @@ async function handleRequest(req, res) {
     } else {
       // Detect numeric messages as quick replies
       let detectedQuickReply = null;
-      if (/^[1-9]$/.test(message.trim())) {
+      if (message && typeof message === 'string' && /^[1-9]$/.test(message.trim())) {
         detectedQuickReply = parseInt(message.trim(), 10);
       }
       
@@ -123,18 +137,33 @@ async function handleRequest(req, res) {
     return res.status(200).json(result);
 
   } catch (error) {
-    console.error('❌ LangGraph API error:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
-    console.error('❌ Request details:', { message, quickReply, conversationId, customer });
+    // Safely get variables that might not be defined yet
+    const safeMessage = typeof message !== 'undefined' ? message : null;
+    const safeQuickReply = typeof quickReply !== 'undefined' ? quickReply : null;
+    const safeConversationId = typeof conversationId !== 'undefined' ? conversationId : null;
+    const safeCustomer = typeof customer !== 'undefined' ? customer : null;
     
-    // Log specific error types
-    if (error.message) {
-      console.error('❌ Error message details:', error.message);
-    }
+    // Comprehensive error logging for debugging - print all details
+    console.error('========================================');
+    console.error('❌ LANGGRAPH API ERROR - FULL DETAILS');
+    console.error('========================================');
+    console.error('❌ Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('❌ Error Type:', error.name || 'Unknown');
+    console.error('❌ Error Message:', error.message || 'No message');
+    console.error('❌ Error Stack:', error.stack || 'No stack trace');
     if (error.cause) {
-      console.error('❌ Error cause:', error.cause);
+      console.error('❌ Error Cause:', error.cause);
     }
+    console.error('❌ Request Method:', req.method);
+    console.error('❌ Request Body:', JSON.stringify(req.body, null, 2));
+    console.error('❌ Request Headers:', JSON.stringify(req.headers, null, 2));
+    console.error('❌ Extracted Variables:', {
+      message: safeMessage,
+      quickReply: safeQuickReply,
+      conversationId: safeConversationId,
+      customer: safeCustomer
+    });
+    console.error('========================================');
     
     // Ensure we always return valid JSON
     try {
@@ -146,9 +175,7 @@ async function handleRequest(req, res) {
         // Include stack trace only in development
         ...(process.env.NODE_ENV !== 'production' && { stack: error.stack }),
         naturalResponse: {
-          opening: process.env.NODE_ENV === 'production' 
-            ? "I'm sorry, I encountered an error. Please try again."
-            : `I encountered an error: ${error.message || 'Unknown error'}. Please try again.`,
+          opening: "I'm sorry, I encountered an error. Please try again.",
           items: [],
           cta: "How can I help you find luxury products?",
           quick_replies: ["Try again", "Get help", "Start over"]
@@ -156,10 +183,10 @@ async function handleRequest(req, res) {
         // Include metadata for debugging (always include key info)
         metadata: {
           timestamp: new Date().toISOString(),
-          conversationId: conversationId || 'unknown',
-          hasMessage: !!message,
-          hasQuickReply: !!quickReply,
-          messageLength: message ? message.length : 0,
+          conversationId: safeConversationId || 'unknown',
+          hasMessage: !!safeMessage,
+          hasQuickReply: !!safeQuickReply,
+          messageLength: safeMessage ? safeMessage.length : 0,
           // Always include environment info for Netlify debugging
           environment: process.env.NODE_ENV || 'unknown',
           hasGroqKey: !!process.env.LLM_GROQ_API_KEY,
@@ -169,6 +196,12 @@ async function handleRequest(req, res) {
           diagnostics: {
             apiKeysConfigured: !!(process.env.LLM_GROQ_API_KEY || process.env.LLM_GEMINI_API_KEY),
             provider: process.env.LLM_PROVIDER || 'groq (default)'
+          },
+          // Include request details for debugging
+          requestInfo: {
+            method: req.method,
+            hasBody: !!req.body,
+            bodyType: typeof req.body
           }
         }
       };
