@@ -521,6 +521,9 @@ class LangGraphOrchestrator {
     // Initialize state
     let state = this.getInitialState(conversationId, customerId);
     
+    // IMPORTANT: Store the query in state so it's available throughout the pipeline
+    state.query = query;
+    
     // Load conversation history
     const history = memoryService.getConversationHistory(conversationId, 5);
     state.messages = history;
@@ -813,11 +816,17 @@ class LangGraphOrchestrator {
   }
 
   async responseGenerationNode(state) {
+    console.log('[LangGraph] responseGenerationNode - currentIntent:', state.currentIntent);
+    console.log('[LangGraph] responseGenerationNode - has toolResponse:', !!state.toolResponse);
+    console.log('[LangGraph] responseGenerationNode - query:', state.query);
+    
     if (state.toolResponse) {
       // Use tool-generated response
       state.response = state.toolResponse;
+      console.log('[LangGraph] Using toolResponse');
     } else if (state.currentIntent === 'greeting' || state.currentIntent === 'casual_conversation') {
       // Generate natural, varied greeting responses using LLM
+      console.log('[LangGraph] Generating greeting response...');
       try {
         const greetingResponse = await llmProvider.chatCompletion([
           {
@@ -850,8 +859,9 @@ class LangGraphOrchestrator {
           cta: "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products. What would you like to explore today?",
           quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
         };
+        console.log('[LangGraph] Greeting response generated:', JSON.stringify(state.response, null, 2));
       } catch (error) {
-        console.error('Error generating greeting response, using fallback:', error);
+        console.error('[LangGraph] Error generating greeting response, using fallback:', error);
         // Fallback to varied responses based on query
         const queryLower = (state.query || '').toLowerCase();
         let opening;
@@ -870,16 +880,26 @@ class LangGraphOrchestrator {
           cta: "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products.",
           quick_replies: ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
         };
+        console.log('[LangGraph] Greeting fallback response set:', JSON.stringify(state.response, null, 2));
       }
     } else {
       // Generate response from products
+      console.log('[LangGraph] Generating product response...');
       state.response = await enhancedRAGService.generateResponse(
         state.query || 'luxury products',
         state.products,
         state.context
       );
+      console.log('[LangGraph] Product response generated:', state.response ? 'Yes' : 'No');
     }
 
+    console.log('[LangGraph] Final state.response:', state.response ? {
+      hasOpening: !!state.response.opening,
+      itemsCount: state.response.items?.length || 0,
+      hasCta: !!state.response.cta,
+      hasQuickReplies: !!state.response.quick_replies
+    } : 'NULL');
+    
     return state;
   }
 
@@ -939,7 +959,14 @@ class LangGraphOrchestrator {
   }
 
   formatResponse(state) {
+    console.log('[LangGraph] formatResponse called - state.response:', state.response ? {
+      type: typeof state.response,
+      hasOpening: !!state.response.opening,
+      keys: Object.keys(state.response || {})
+    } : 'NULL');
+    
     if (state.response && typeof state.response === 'object' && state.response.opening) {
+      console.log('[LangGraph] formatResponse - returning state.response');
       return {
         success: true,
         naturalResponse: state.response,
@@ -951,33 +978,53 @@ class LangGraphOrchestrator {
         }
       };
     }
+    
+    console.log('[LangGraph] formatResponse - using fallback response (state.response missing or invalid)');
 
     // Fallback response - make it context-aware
+    // IMPORTANT: Always use current query first, not cached category
     const products = Array.isArray(state.products) ? state.products : [];
     const query = (state.query || '').toLowerCase();
     
-    // Generate context-aware opening based on query
-    let opening = "Here are some luxury products I found for you:";
-    if (query.includes('bag') || query.includes('handbag')) {
-      opening = "Here are some beautiful bags for you:";
-    } else if (query.includes('watch') || query.includes('timepiece')) {
-      opening = "Here are some exquisite watches for you:";
-    } else if (query.includes('jewelry') || query.includes('jewellery')) {
-      opening = "Here are some stunning jewelry pieces for you:";
-    } else if (query.includes('skincare') || query.includes('beauty')) {
-      opening = "Here are some premium skincare products for you:";
-    } else if (query.includes('wellness')) {
-      opening = "Here are some wellness products for you:";
-    } else if (query.includes('fragrance') || query.includes('perfume')) {
-      opening = "Here are some luxury fragrances for you:";
-    } else if (state.memory?.lastCategory) {
-      // Use last category if available
-      const category = state.memory.lastCategory;
-      if (category === 'handbags') opening = "Here are some beautiful bags for you:";
-      else if (category === 'watches') opening = "Here are some exquisite watches for you:";
-      else if (category === 'jewelry') opening = "Here are some stunning jewelry pieces for you:";
-      else if (category === 'skincare') opening = "Here are some premium skincare products for you:";
-      else if (category === 'wellness') opening = "Here are some wellness products for you:";
+    // For greetings, provide a welcoming fallback
+    let opening;
+    if (state.currentIntent === 'greeting' || state.currentIntent === 'casual_conversation') {
+      if (query.includes('how are you') || query.includes('how are you doing')) {
+        opening = "I'm doing great, thank you for asking! 😊 I'm here and ready to help you find the perfect luxury products. What would you like to explore today?";
+      } else if (query.includes('good morning')) {
+        opening = "Good morning! ☀️ I'm here to help you discover amazing luxury products. What can I help you find today?";
+      } else if (query.includes('good afternoon')) {
+        opening = "Good afternoon! 🌤️ I'm here to help you discover amazing luxury products. What can I help you find today?";
+      } else if (query.includes('good evening')) {
+        opening = "Good evening! 🌙 I'm here to help you discover amazing luxury products. What can I help you find today?";
+      } else {
+        opening = "Hello! 👋 Welcome! I'm your AI shopping assistant and I'm excited to help you find the perfect luxury products. What would you like to explore today?";
+      }
+    } else {
+      // Generate context-aware opening based on CURRENT query (not cached category)
+      // Check more specific categories first
+      opening = "Here are some luxury products I found for you:";
+      if (query.includes('jewelry') || query.includes('jewellery') || query.includes('necklace') || query.includes('ring') || query.includes('bracelet') || query.includes('earring') || query.includes('explore jewelry')) {
+        opening = "Here are some stunning jewelry pieces for you:";
+      } else if (query.includes('bag') || query.includes('handbag') || query.includes('purse')) {
+        opening = "Here are some beautiful bags for you:";
+      } else if (query.includes('watch') || query.includes('timepiece') || query.includes('browse watches')) {
+        opening = "Here are some exquisite watches for you:";
+      } else if (query.includes('skincare') || query.includes('skin care') || query.includes('beauty')) {
+        opening = "Here are some premium skincare products for you:";
+      } else if (query.includes('wellness')) {
+        opening = "Here are some wellness products for you:";
+      } else if (query.includes('fragrance') || query.includes('perfume')) {
+        opening = "Here are some luxury fragrances for you:";
+      } else if (state.memory?.lastCategory && !query) {
+        // Only use cached category if there's no current query
+        const category = state.memory.lastCategory;
+        if (category === 'jewelry') opening = "Here are some stunning jewelry pieces for you:";
+        else if (category === 'handbags') opening = "Here are some beautiful bags for you:";
+        else if (category === 'watches') opening = "Here are some exquisite watches for you:";
+        else if (category === 'skincare') opening = "Here are some premium skincare products for you:";
+        else if (category === 'wellness') opening = "Here are some wellness products for you:";
+      }
     }
     
     return {
@@ -990,8 +1037,12 @@ class LangGraphOrchestrator {
           one_liner: p.description || 'Luxury product',
           image: '🛍️'
         })),
-        cta: "Which product interests you most?",
-        quick_replies: ["Show me more", "Different category", "Get help"]
+        cta: state.currentIntent === 'greeting' 
+          ? "I can help you discover luxury handbags, watches, jewelry, skincare, and wellness products. What would you like to explore today?"
+          : "Which product interests you most?",
+        quick_replies: state.currentIntent === 'greeting'
+          ? ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
+          : ["Show me more", "Different category", "Get help"]
       },
       metadata: {
         intent: state.currentIntent,

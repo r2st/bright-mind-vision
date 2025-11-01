@@ -148,8 +148,55 @@ class LLMProvider {
       requestOptions.tool_choice = tool_choice;
     }
 
-    const response = await this.groq.chat.completions.create(requestOptions);
-    return response;
+    try {
+      const response = await this.groq.chat.completions.create(requestOptions);
+      return response;
+    } catch (error) {
+      // Handle rate limit errors (429) - automatically fallback to Gemini if available
+      if (error.status === 429 || (error.message && error.message.includes('rate limit'))) {
+        console.warn('⚠️ Groq rate limit reached, attempting fallback to Gemini...');
+        
+        // Only fallback to Gemini if it's available and we have the API key
+        if (process.env.LLM_GEMINI_API_KEY) {
+          try {
+            this.ensureGeminiInitialized();
+            console.log('🔄 Using Gemini as fallback for rate-limited request');
+            // Convert Groq model name to Gemini model name
+            // IMPORTANT: Groq models (llama, mixtral) cannot be used with Gemini
+            let geminiModel = 'gemini-1.5-pro'; // Safe default
+            const modelLower = (model || '').toLowerCase();
+            
+            if (modelLower.includes('llama') || modelLower.includes('mixtral')) {
+              // Definitely a Groq model - always use Gemini default
+              geminiModel = 'gemini-1.5-pro';
+            } else if (modelLower.includes('gemini')) {
+              // Already a Gemini model name - use it (strip -latest if present)
+              geminiModel = model.replace(/-latest$/i, '');
+            } else {
+              // Unknown model, use safe default (don't use LLM_NLG_MODEL as it might be set to Groq model)
+              geminiModel = 'gemini-1.5-pro';
+            }
+            
+            // Final safety check: never use a Groq model name with Gemini API
+            const finalModelLower = geminiModel.toLowerCase();
+            if (finalModelLower.includes('llama') || finalModelLower.includes('mixtral')) {
+              console.warn(`   ⚠️ Safety check: Detected Groq model name "${geminiModel}", forcing Gemini default`);
+              geminiModel = 'gemini-1.5-pro';
+            }
+            
+            console.log(`   Using Gemini model: ${geminiModel} (converted from Groq model: ${model})`);
+            return await this.geminiChatCompletion(messages, geminiModel, temperature, max_tokens, tools, tool_choice);
+          } catch (geminiError) {
+            console.error('❌ Gemini fallback also failed:', geminiError);
+            // Re-throw original Groq error if Gemini also fails
+            throw error;
+          }
+        }
+      }
+      
+      // Re-throw original error if not rate limit or no Gemini fallback
+      throw error;
+    }
   }
 
   async geminiChatCompletion(messages, model, temperature, max_tokens, tools, tool_choice) {

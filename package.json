@@ -11,7 +11,8 @@
     "turso:init": "node scripts/init-turso-db.js",
     "turso:migrate": "node scripts/migrate-turso-products.js",
     "turso:embeddings": "node scripts/generate-turso-embeddings.js",
-    "pinecone:populate": "node scripts/populate-pinecone.js"
+    "pinecone:populate": "node scripts/populate-pinecone.js",
+    "test:whatsapp": "node test/whatsapp-webhook-test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

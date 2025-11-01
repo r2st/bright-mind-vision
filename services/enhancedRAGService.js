@@ -343,14 +343,15 @@ class EnhancedRAGService {
     let targetCategory = context?.lastCategory || null;
     
     // Fallback: Determine target category from query if not in context
+    // IMPORTANT: Check jewelry first (before watches) since "watch" might appear in other contexts
     if (!targetCategory) {
-      if (queryLower.includes('handbag') || queryLower.includes('bag') || queryLower.includes('purse') || queryLower.includes('tote') || queryLower.includes('clutch') || queryLower.includes('crossbody') || queryLower.includes('satchel')) {
-        targetCategory = 'handbags';
-      } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
-        targetCategory = 'watches';
-      } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery') || queryLower.includes('necklace') || queryLower.includes('ring') || queryLower.includes('bracelet') || queryLower.includes('earring') || queryLower.includes('earrings')) {
+      if (queryLower.includes('jewelry') || queryLower.includes('jewellery') || queryLower.includes('necklace') || queryLower.includes('ring') || queryLower.includes('bracelet') || queryLower.includes('earring') || queryLower.includes('earrings') || queryLower.includes('explore jewelry')) {
         targetCategory = 'jewelry';
-      } else if (queryLower.includes('skincare') || queryLower.includes('skin') || queryLower.includes('treatment') || queryLower.includes('serum') || queryLower.includes('essence') || queryLower.includes('moisturizer') || queryLower.includes('cream')) {
+      } else if (queryLower.includes('handbag') || queryLower.includes('bag') || queryLower.includes('purse') || queryLower.includes('tote') || queryLower.includes('clutch') || queryLower.includes('crossbody') || queryLower.includes('satchel')) {
+        targetCategory = 'handbags';
+      } else if (queryLower.includes('watch') || queryLower.includes('timepiece') || queryLower.includes('browse watches')) {
+        targetCategory = 'watches';
+      } else if (queryLower.includes('skincare') || queryLower.includes('skin care') || queryLower.includes('skin') || queryLower.includes('treatment') || queryLower.includes('serum') || queryLower.includes('essence') || queryLower.includes('moisturizer') || queryLower.includes('cream')) {
         targetCategory = 'skincare';
       } else if (queryLower.includes('wellness') || queryLower.includes('health') || queryLower.includes('spa') || queryLower.includes('relaxation')) {
         targetCategory = 'wellness';
@@ -788,13 +789,13 @@ class EnhancedRAGService {
             if (!openingLower.includes('bag') && !openingLower.includes('handbag')) {
               parsed.opening = "Here are some beautiful bags for you:";
             }
-          } else if (queryLower.includes('watch') || queryLower.includes('timepiece')) {
-            if (!openingLower.includes('watch') && !openingLower.includes('timepiece')) {
-              parsed.opening = "Here are some exquisite watches for you:";
-            }
-          } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery')) {
+          } else if (queryLower.includes('jewelry') || queryLower.includes('jewellery') || queryLower.includes('explore jewelry')) {
             if (!openingLower.includes('jewelry') && !openingLower.includes('jewellery')) {
               parsed.opening = "Here are some stunning jewelry pieces for you:";
+            }
+          } else if (queryLower.includes('watch') || queryLower.includes('timepiece') || queryLower.includes('browse watches')) {
+            if (!openingLower.includes('watch') && !openingLower.includes('timepiece')) {
+              parsed.opening = "Here are some exquisite watches for you:";
             }
           } else if (queryLower.includes('skincare') || queryLower.includes('skin care') || queryLower.includes('beauty')) {
             if (!openingLower.includes('skincare') && !openingLower.includes('skin') && !openingLower.includes('beauty')) {
