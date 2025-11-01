@@ -309,14 +309,25 @@ async function handleIncomingMessage(message, contact, receivingPhoneNumberId = 
     const quickReplyAction = handleQuickReply(messageData.message);
     if (quickReplyAction) {
       console.log('🔢 Quick reply detected:', quickReplyAction);
-      await sendTypingIndicator(messageData.from, receivingPhoneNumberId);
       await handleQuickReplyAction(quickReplyAction, messageData.from, receivingPhoneNumberId);
       await markMessageAsProcessed(messageData.id);
       return;
     }
 
-    // Show typing indicator before processing
-    await sendTypingIndicator(messageData.from, receivingPhoneNumberId);
+    // Check if this is a greeting - don't send instant ack for greetings
+    const isGreeting = /^(hi|hello|hey|hola|how are you\b|good (morning|afternoon|evening)\b)/i.test(messageData.message.trim());
+    
+    // Send instant human-like acknowledgment while AI processes (skip for greetings)
+    if (!isGreeting) {
+      const instantAck = getHumanLikeAcknowledgment(messageData.message);
+      if (instantAck) {
+        console.log('⚡ Sending instant human acknowledgment...');
+        // Send without waiting - fire and forget so it doesn't delay AI processing
+        sendWhatsAppMessage(messageData.from, instantAck, receivingPhoneNumberId).catch(err => {
+          console.error('⚠️ Failed to send instant acknowledgment:', err);
+        });
+      }
+    }
     
     // Trigger AI product recommendation using production API
     await triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId);
@@ -421,6 +432,79 @@ async function handleQuickReplyAction(action, from, receivingPhoneNumberId = nul
   }
 }
 
+// Get human-like instant acknowledgment (sent immediately while AI processes)
+function getHumanLikeAcknowledgment(message) {
+  const lowerMessage = (message || '').toLowerCase().trim();
+  
+  // Human-like acknowledgments - natural, warm, without ellipsis
+  const acknowledgments = {
+    '1': 'Perfect! Let me show you our handbags',
+    '2': 'Great choice! Finding watches for you',
+    '3': 'Wonderful! Let me find jewelry pieces for you',
+    '4': 'Excellent! Gathering all our products for you',
+    'explore jewelry': 'Wonderful! Let me find the perfect jewelry pieces for you',
+    'show me jewelry': 'Of course! Finding beautiful jewelry for you',
+    'jewelry': 'Great! Let me show you our jewelry collection',
+    'browse watches': 'Perfect! Let me find watches for you',
+    'show me watches': 'Absolutely! Finding luxury watches for you',
+    'watches': 'Great choice! Let me find watches for you',
+    'explore handbags': 'Wonderful! Finding handbags for you',
+    'show me handbags': 'Of course! Let me show you our handbags',
+    'handbags': 'Perfect! Finding luxury handbags for you',
+    'bags': 'Great! Let me find bags for you',
+    'bag': 'Perfect! Finding handbags for you',
+    'skincare': 'Excellent! Finding premium skincare products for you',
+    'wellness': 'Wonderful! Discovering wellness products for you',
+    'show me all products': 'Perfect! Gathering our complete collection for you',
+    'view all products': 'Excellent! Finding all our products for you',
+  };
+  
+  // Check exact matches first
+  if (acknowledgments[lowerMessage]) {
+    return acknowledgments[lowerMessage];
+  }
+  
+  // Check if message contains common keywords (more natural, human responses)
+  if (lowerMessage.includes('jewelry') || lowerMessage.includes('jewellery')) {
+    return 'Wonderful! Let me find jewelry pieces for you';
+  }
+  // Fix: Properly check for handbag/bag (need to check bag separately)
+  if (lowerMessage.includes('handbag') || (lowerMessage.includes('bag') && !lowerMessage.includes('shop') && lowerMessage.length < 20)) {
+    return 'Perfect! Finding handbags for you';
+  }
+  if (lowerMessage.includes('watch') && !lowerMessage.includes('shop')) {
+    return 'Great choice! Finding watches for you';
+  }
+  if (lowerMessage.includes('skincare') || lowerMessage.includes('skin care')) {
+    return 'Excellent! Finding skincare products for you';
+  }
+  if (lowerMessage.includes('wellness')) {
+    return 'Wonderful! Finding wellness products for you';
+  }
+  
+  // Check for "show me" or "browse" patterns
+  if (lowerMessage.includes('show me') || lowerMessage.includes('browse')) {
+    if (lowerMessage.includes('handbag') || lowerMessage.includes('bag')) {
+      return 'Perfect! Finding handbags for you';
+    }
+    if (lowerMessage.includes('watch')) {
+      return 'Great choice! Finding watches for you';
+    }
+    if (lowerMessage.includes('jewelry') || lowerMessage.includes('jewellery')) {
+      return 'Wonderful! Finding jewelry pieces for you';
+    }
+    return 'Perfect! Let me find that for you';
+  }
+  
+  // Default acknowledgment for any product-related query (but not greetings)
+  if (lowerMessage.length > 1 && lowerMessage.length < 50 && 
+      !lowerMessage.match(/^(hi|hello|hey|hola)$/)) {
+    return 'Perfect! Let me find that for you';
+  }
+  
+  return null; // No acknowledgment needed for greetings or very long messages
+}
+
 // Get action-specific message for RAG
 function getActionMessage(action) {
   const actionMessages = {
@@ -473,7 +557,7 @@ async function storeMessage(messageData) {
 }
 
 // Trigger AI-Integrated recommendation using Groq LLM + RAG + Multi-Agent
-async function triggerAIIntegratedRecommendation(messageData) {
+async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId = null) {
   try {
     console.log('🤖 Triggering AI-integrated recommendation for:', messageData.from);
     
@@ -536,7 +620,7 @@ async function triggerAIIntegratedRecommendation(messageData) {
       
       // Try to send a more helpful error message
       const errorMsg = result.error || result.message || "I'm having trouble processing your request right now.";
-      await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.");
+      await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
       return;
     }
     
@@ -545,12 +629,12 @@ async function triggerAIIntegratedRecommendation(messageData) {
       console.log('📤 Formatting and sending AI response...');
       const formatted = formatProductionResponse(result.naturalResponse);
       console.log('📤 Formatted message length:', formatted.length);
-      await sendWhatsAppMessage(messageData.from, formatted);
+      await sendWhatsAppMessage(messageData.from, formatted, receivingPhoneNumberId);
       console.log('✅ AI response sent successfully');
     } else {
       console.warn('⚠️ No naturalResponse in result, using fallback');
       console.warn('⚠️ Result structure:', Object.keys(result));
-      await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?");
+      await sendWhatsAppMessage(messageData.from, "I'm here to help you find luxury products. What would you like to explore?", receivingPhoneNumberId);
     }
     
   } catch (error) {
@@ -562,7 +646,7 @@ async function triggerAIIntegratedRecommendation(messageData) {
       cause: error.cause
     });
     try {
-      await sendWhatsAppMessage(messageData.from, "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment.");
+      await sendWhatsAppMessage(messageData.from, "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment.", receivingPhoneNumberId);
     } catch (sendError) {
       console.error('❌ Failed to send error message:', sendError);
     }
@@ -574,7 +658,12 @@ async function triggerAIIntegratedRecommendation(messageData) {
 function formatProductionResponse(response) {
   const { opening, items, cta, quick_replies } = response;
   
-  let message = `${opening}\n\n`;
+  // Clean up opening message - remove trailing ellipsis and make it natural
+  let cleanOpening = (opening || '').trim();
+  // Remove trailing "..." or "…" 
+  cleanOpening = cleanOpening.replace(/\.\.\.+$/, '').replace(/…+$/, '').trim();
+  
+  let message = `${cleanOpening}\n\n`;
   
   if (items && items.length > 0) {
     items.forEach((item, index) => {
@@ -583,13 +672,20 @@ function formatProductionResponse(response) {
     });
   }
   
-  message += `💬 ${cta}\n\n`;
-  message += `Quick replies:\n`;
-  quick_replies.forEach((reply, index) => {
-    message += `${index + 1}. ${reply}\n`;
-  });
+  // Clean up CTA - remove trailing ellipsis
+  let cleanCta = (cta || '').trim().replace(/\.\.\.+$/, '').replace(/…+$/, '').trim();
+  if (cleanCta) {
+    message += `💬 ${cleanCta}\n\n`;
+  }
   
-  return message;
+  if (quick_replies && quick_replies.length > 0) {
+    message += `Quick replies:\n`;
+    quick_replies.forEach((reply, index) => {
+      message += `${index + 1}. ${reply}\n`;
+    });
+  }
+  
+  return message.trim();
 }
 
 

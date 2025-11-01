@@ -829,14 +829,16 @@ class LangGraphOrchestrator {
       console.log('[LangGraph] Generating greeting response...');
       try {
         const greetingResponse = await llmProvider.chatCompletion([
-          {
-            role: 'system',
-            content: `You are a friendly, luxury shopping assistant for a high-end boutique in Dubai. 
+        {
+          role: 'system',
+          content: `You are a friendly, luxury shopping assistant for a high-end boutique in Dubai. 
             When the user greets you, respond naturally and warmly. Match the tone of their greeting:
             - If they just say "hi" or "hello", greet them back enthusiastically and offer help
             - If they ask "how are you", respond naturally about how you're doing, then pivot to offering help
             - Keep responses warm, personal, and engaging
             - Always end by asking what they'd like to explore or offering to help them find products
+            - DO NOT use trailing ellipsis (...) - keep responses complete and natural
+            - Sound human and conversational, not robotic
             
             Return your response as a natural greeting that acknowledges what they said. Keep it conversational and friendly (2-3 sentences max).`
           },

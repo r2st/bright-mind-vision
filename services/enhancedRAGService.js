@@ -747,6 +747,8 @@ class EnhancedRAGService {
           - Never use generic phrases like "Here are some luxury products I found for you:" when the user was specific
           - NEVER use an opening about a different product category than what the user asked for (e.g., don't say "watches" if they asked for "skincare")
           - Double-check that your opening message matches the category of products you're showing
+          - DO NOT use trailing ellipsis (...) - keep responses complete and natural, like a human would write
+          - Sound human and conversational - avoid robotic phrases like "Let me find..." or "Discovering..." at the start
           
           Format your response as JSON with:
           - opening: Natural, context-aware welcome message that reflects the user's query
