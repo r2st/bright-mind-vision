@@ -22,7 +22,10 @@ class EnhancedRAGService {
       try {
         const products = await tursoVectorDB.getAllProducts();
         if (products && products.length > 0) {
+          console.log(`✅ RAG Service: Found ${products.length} products in Turso`);
           return products;
+        } else {
+          console.warn(`⚠️ RAG Service: Turso returned ${products?.length || 0} products, trying fallback...`);
         }
       } catch (error) {
         console.warn('⚠️ RAG Service: Turso unavailable, trying SQLite fallback:', error.message);
@@ -33,14 +36,17 @@ class EnhancedRAGService {
     try {
       const dbProducts = vectorDB.getAllProducts();
       if (dbProducts && dbProducts.length > 0) {
+        console.log(`✅ RAG Service: Found ${dbProducts.length} products in SQLite`);
         return dbProducts;
+      } else {
+        console.warn(`⚠️ RAG Service: SQLite returned ${dbProducts?.length || 0} products, using catalog fallback`);
       }
     } catch (error) {
       console.warn('⚠️ RAG Service: SQLite unavailable, using catalog fallback:', error.message);
     }
     
-    // Priority 3: Fallback to catalog when all databases unavailable
-    console.warn('⚠️ RAG Service: All databases unavailable, using product catalog directly');
+    // Priority 3: Fallback to catalog when all databases unavailable or empty
+    console.log(`📦 RAG Service: Using product catalog directly (${normalizedProductCatalog.length} products)`);
     return normalizedProductCatalog.map((product, index) => ({
       id: index + 1,
       sku: product.sku,
@@ -277,7 +283,9 @@ class EnhancedRAGService {
     // Performance optimization: Skip intent classification if we have explicit category context
     if (context.lastCategory && context.skipIntentClassification) {
       const products = await this.strictCategorySearch(context.lastCategory, context);
-      return products.slice(0, 5);
+      // Ensure products is always an array
+      const safeProducts = Array.isArray(products) ? products : [];
+      return safeProducts.slice(0, 5);
     }
 
     const intent = await this.classifyIntent(query);
@@ -300,14 +308,16 @@ class EnhancedRAGService {
     } else {
       // Fallback to text search - use catalog if DB unavailable
       const dbProducts = vectorDB.searchProducts(query);
-      if (dbProducts && dbProducts.length > 0) {
+      if (dbProducts && Array.isArray(dbProducts) && dbProducts.length > 0) {
         products = dbProducts;
       } else {
-        products = this.searchProductsInCatalog(query);
+        products = await this.searchProductsInCatalog(query);
       }
     }
 
-    return products.slice(0, 5); // Return top 5 results
+    // Ensure products is always an array before slicing
+    const safeProducts = Array.isArray(products) ? products : [];
+    return safeProducts.slice(0, 5); // Return top 5 results
   }
 
   handleNonProductQuery(query) {
@@ -339,6 +349,9 @@ class EnhancedRAGService {
     const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
     const debug = process.env.DEBUG_RAG === 'true';
     
+    // Ensure allProducts is an array
+    const safeProducts = Array.isArray(allProducts) ? allProducts : [];
+    
     // Priority: Use explicit category from context if provided (performance optimization)
     let targetCategory = context?.lastCategory || null;
     
@@ -357,12 +370,12 @@ class EnhancedRAGService {
         targetCategory = 'wellness';
       }
     }
-    if (debug) console.log('[RAG] strictCategorySearch', { query, targetCategory, all: allProducts?.length });
+    if (debug) console.log('[RAG] strictCategorySearch', { query, targetCategory, all: safeProducts?.length });
     
     // First filter by category if we have a target category
-    let filteredProducts = allProducts;
+    let filteredProducts = safeProducts;
     if (targetCategory) {
-      filteredProducts = allProducts.filter(product => {
+      filteredProducts = safeProducts.filter(product => {
         // Safety check - skip products with missing required fields
         if (!product || !product.title) {
           return false;
@@ -409,7 +422,7 @@ class EnhancedRAGService {
     
     // If no products found with strict filtering, fall back to broader search
     if (filteredProducts.length === 0) {
-      filteredProducts = allProducts;
+      filteredProducts = safeProducts;
       if (debug) console.log('[RAG] fallback to all products');
     }
     
@@ -611,27 +624,32 @@ class EnhancedRAGService {
       // If no embeddings available, fall back to catalog search
       if (!hasEmbeddings) {
         console.warn('⚠️ No embeddings available, falling back to catalog search');
-        return this.searchProductsInCatalog(query).slice(0, 5);
+        const catalogProducts = await this.searchProductsInCatalog(query);
+        const safeProducts = Array.isArray(catalogProducts) ? catalogProducts : [];
+        return safeProducts.slice(0, 5);
       }
 
       // Sort by similarity score
-      return scoredProducts
-        .sort((a, b) => b.similarity - a.similarity)
+      const safeProducts = Array.isArray(scoredProducts) ? scoredProducts : [];
+      return safeProducts
+        .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
         .slice(0, 5);
 
     } catch (error) {
       console.error('Error in semantic search:', error);
-      return vectorDB.searchProducts(query);
+      const dbProducts = vectorDB.searchProducts(query);
+      return Array.isArray(dbProducts) ? dbProducts : [];
     }
   }
 
   async searchByBrand(query) {
     const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
     const queryLower = query.toLowerCase();
+    const safeProducts = Array.isArray(allProducts) ? allProducts : [];
     
-    return allProducts.filter(product => 
-      product.brand.toLowerCase().includes(queryLower)
-    ).sort((a, b) => b.rating - a.rating);
+    return safeProducts.filter(product => 
+      product.brand && product.brand.toLowerCase().includes(queryLower)
+    ).sort((a, b) => (b.rating || 0) - (a.rating || 0));
   }
 
   async searchByPrice(query) {
@@ -642,7 +660,8 @@ class EnhancedRAGService {
       const maxPrice = parseInt(priceMatch[2]);
       
       const allProducts = await this.getAllProducts(); // Use helper method with fallback (now async)
-      return allProducts.filter(product => {
+      const safeProducts = Array.isArray(allProducts) ? allProducts : [];
+      return safeProducts.filter(product => {
         const price = typeof product.price === 'object' ? product.price.amount : product.price;
         return price >= minPrice && price <= maxPrice;
       }).sort((a, b) => {
@@ -653,7 +672,8 @@ class EnhancedRAGService {
     }
     
     // Fallback to text search
-    return this.searchProductsInCatalog(query);
+    const catalogProducts = await this.searchProductsInCatalog(query);
+    return Array.isArray(catalogProducts) ? catalogProducts : [];
   }
 
   // Search products in catalog when database is unavailable
@@ -726,6 +746,30 @@ class EnhancedRAGService {
         };
       });
 
+      // Build conversation history context if available
+      const conversationHistory = context.conversationHistory || [];
+      const previousInterests = context.previousInterests || [];
+      const customerName = context.customerName;
+      const lastCategory = context.lastCategory;
+      
+      // Build personalized greeting if customer name is available
+      const nameGreeting = customerName ? ` ${customerName}` : '';
+      
+      // Build context awareness notes
+      let contextNotes = '';
+      if (previousInterests.length > 0 && lastCategory && previousInterests.includes(lastCategory)) {
+        contextNotes = `\n\nCONTEXT: The user has shown interest in ${previousInterests.join(', ')} before. They're currently exploring ${lastCategory}.`;
+      } else if (previousInterests.length > 0) {
+        contextNotes = `\n\nCONTEXT: The user has previously shown interest in: ${previousInterests.join(', ')}.`;
+      }
+      
+      if (conversationHistory.length > 0) {
+        const recentContext = conversationHistory.slice(-3).map(m => 
+          `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+        ).join('\n');
+        contextNotes += `\n\nRECENT CONVERSATION:\n${recentContext}\n\nUse this context to make your response more natural and context-aware. Reference previous interactions when relevant, but keep it subtle and human-like.`;
+      }
+
       const response = await llmProvider.chatCompletion([
         {
           role: 'system',
@@ -733,10 +777,13 @@ class EnhancedRAGService {
           Generate a natural, engaging, and context-aware response that:
           1. ACKNOWLEDGES the user's specific query in the opening message (e.g., if they asked for "bags", say "Here are some bags for you:" or "I've found some beautiful bags:")
           2. Uses natural, conversational language that reflects what the user asked for
-          3. Presents the recommended products in an appealing way
-          4. Uses the EXACT prices provided in the product data (already formatted as "amount AED")
-          5. Provides context-appropriate quick replies
-          6. Maintains a luxury, personalized, and friendly tone
+          3. References previous conversation context when relevant (e.g., "As you were interested in..." or "Building on our earlier conversation...")
+          4. Uses the customer's name${nameGreeting ? ` (${customerName})` : ''} naturally when appropriate, but don't overuse it
+          5. Presents the recommended products in an appealing way
+          6. Uses the EXACT prices provided in the product data (already formatted as "amount AED")
+          7. Provides context-appropriate quick replies
+          8. Maintains a luxury, personalized, and friendly tone
+          9. Sounds like a real human conversation - references previous interactions naturally
           
           IMPORTANT RULES FOR OPENING MESSAGE:
           - CRITICAL: The opening message MUST match the user's query. If they ask for "skincare", the opening MUST mention skincare, not watches or bags
@@ -744,14 +791,16 @@ class EnhancedRAGService {
           - If they ask for "watches", say "Here are some exquisite watches:" or "I found some stunning timepieces for you:"
           - If they ask for "skincare" or "skin care", say "Here are some premium skincare products:" or "I've selected some luxury skincare items for you:"
           - Match the user's language and tone - be natural and conversational
+          - Reference previous interests naturally when switching categories (e.g., "I see you're also interested in..." or "While you were looking at watches earlier...")
           - Never use generic phrases like "Here are some luxury products I found for you:" when the user was specific
           - NEVER use an opening about a different product category than what the user asked for (e.g., don't say "watches" if they asked for "skincare")
           - Double-check that your opening message matches the category of products you're showing
           - DO NOT use trailing ellipsis (...) - keep responses complete and natural, like a human would write
           - Sound human and conversational - avoid robotic phrases like "Let me find..." or "Discovering..." at the start
+          - If context shows previous interests, subtly acknowledge them (e.g., "I see you're exploring different categories today" or "Building on your interest in luxury items...")
           
           Format your response as JSON with:
-          - opening: Natural, context-aware welcome message that reflects the user's query
+          - opening: Natural, context-aware welcome message that reflects the user's query and optionally references previous context
           - items: Array of product recommendations
           - cta: Call to action
           - quick_replies: Array of 3 quick reply options
@@ -762,13 +811,12 @@ class EnhancedRAGService {
         },
         {
           role: 'user',
-          content: `User Query: "${query}"
-          Context: ${JSON.stringify(context)}
+          content: `User Query: "${query}"${nameGreeting ? `\nCustomer Name: ${customerName}` : ''}${contextNotes}
           
           Products to recommend (use EXACT price format):
           ${productList.map(p => `- ${p.title} by ${p.brand} - ${p.price} - ${p.description}`).join('\n')}
           
-          Generate a natural, context-aware response. The opening message should acknowledge what the user specifically asked for. For example, if they asked for "bags", start with "Here are some bags for you:" or similar natural phrasing that matches their query.`
+          Generate a natural, context-aware response. The opening message should acknowledge what the user specifically asked for. Use the conversation context to make references to previous interactions when relevant, but keep it natural and human-like. For example, if they asked for "bags", start with "Here are some bags for you:" or similar natural phrasing that matches their query.`
         }
       ], {
         model: this.pickNlgModel(query, productList, generationOptions),
@@ -832,7 +880,9 @@ class EnhancedRAGService {
               
               return {
                 ...item,
-                price: `${priceAmount} ${priceCurrency}`
+                price: `${priceAmount} ${priceCurrency}`,
+                sku: p.sku || null,
+                brand: p.brand || null
               };
             }
             return item;
@@ -897,7 +947,9 @@ class EnhancedRAGService {
       }
     }
 
-    const items = products.slice(0, 3).map((product, index) => {
+    // Ensure products is an array
+    const safeProducts = Array.isArray(products) ? products : [];
+    const items = safeProducts.slice(0, 3).map((product, index) => {
       let priceAmount = 0;
       let priceCurrency = 'AED';
       
@@ -913,7 +965,9 @@ class EnhancedRAGService {
         headline: product.title,
         price: `${priceAmount} ${priceCurrency}`,
         one_liner: product.description || 'Luxury product',
-        image: '🛍️'
+        image: '🛍️',
+        sku: product.sku || null,
+        brand: product.brand || null
       };
     });
 

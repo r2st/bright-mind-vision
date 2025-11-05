@@ -9,10 +9,15 @@
     "start": "next start",
     "export": "next build && next export",
     "turso:init": "node scripts/init-turso-db.js",
+    "turso:orders": "node scripts/init-turso-orders.js",
+      "turso:inventory": "node scripts/init-turso-inventory.js",
+      "inventory:populate": "node scripts/populate-inventory.js",
     "turso:migrate": "node scripts/migrate-turso-products.js",
     "turso:embeddings": "node scripts/generate-turso-embeddings.js",
     "pinecone:populate": "node scripts/populate-pinecone.js",
-    "test:whatsapp": "node test/whatsapp-webhook-test.js"
+    "test:whatsapp": "node test/whatsapp-webhook-test.js",
+    "test:llm": "node test/test-llm-system.js",
+    "test:interactive": "node test/test-interactive.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -28,6 +33,7 @@
     "ical-generator": "^7.2.0",
     "next": "^15.0.0",
     "nodemailer": "^7.0.6",
+    "openai": "^6.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sqlite3": "^5.1.7"

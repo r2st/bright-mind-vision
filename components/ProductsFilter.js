@@ -109,7 +109,7 @@ const products = [
       'Automated product discovery'
     ],
     primaryLink: '/product/shopping-assistant',
-    secondaryLink: '/product/shopping-assistant',
+    secondaryLink: '/product/shopping-assistant-info',
     primaryText: 'Try Chat Bot',
     secondaryText: 'Learn More',
     gradient: 'linear-gradient(135deg, #25d366 0%, #128c7e 100%)',

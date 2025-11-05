@@ -9,7 +9,7 @@ exports.handler = async (event, context) => {
     const baseUrl = process.env.URL || 'https://brightmindvision.com';
     
     // Check token status
-    const statusResponse = await fetch(`${baseUrl}/api/meshai/token-renewal`, {
+    const statusResponse = await fetch(`${baseUrl}/api/shopping-assistant/token-renewal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'check' })
@@ -26,7 +26,7 @@ exports.handler = async (event, context) => {
       console.log('⚠️ Token needs renewal, initiating renewal...');
       
       // Renew the token
-      const renewResponse = await fetch(`${baseUrl}/api/meshai/token-renewal`, {
+      const renewResponse = await fetch(`${baseUrl}/api/shopping-assistant/token-renewal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'renew' })

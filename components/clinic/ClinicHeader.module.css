@@ -124,22 +124,60 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
+  .clinicHeader {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  
   .clinicContainer {
-    height: 60px;
+    padding-left: max(20px, env(safe-area-inset-left, 20px));
+    padding-right: max(20px, env(safe-area-inset-right, 20px));
+  }
+  
+  .clinicMenuButton {
+    min-width: 44px; /* iOS touch target */
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .clinicHeader {
+    height: 60px !important;
+    min-height: 60px;
+    max-height: 60px;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  
+  .clinicContainer {
+    height: 60px !important;
     padding: 0 15px;
+    padding-left: max(15px, env(safe-area-inset-left, 15px));
+    padding-right: max(15px, env(safe-area-inset-right, 15px));
   }
   
   .clinicLogoImage {
-    height: 45px;
+    height: 35px;
+    max-width: 100%;
   }
   
   .clinicTitle {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .clinicSubtitle {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .clinicMenuButton {
+    min-width: 44px; /* iOS touch target */
+    min-height: 44px;
+    padding: 0.5rem;
   }
 }
 

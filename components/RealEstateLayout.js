@@ -14,7 +14,8 @@ const RealEstateLayout = ({ children, activeMenu: propActiveMenu, setActiveMenu:
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      minHeight: '100vh' 
+      minHeight: '100vh',
+      minHeight: '100dvh' /* Use dynamic viewport height for mobile */
     }}>
       
       <div className={styles.realEstateContent}>

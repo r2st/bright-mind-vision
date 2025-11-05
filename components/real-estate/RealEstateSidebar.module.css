@@ -3,6 +3,7 @@
   display: flex;
   flex: 1;
   min-height: calc(100vh - 70px);
+  min-height: calc(100dvh - 70px); /* Use dynamic viewport height for mobile */
   margin-top: 70px; /* Offset for fixed real estate header */
   position: relative;
 }
@@ -16,6 +17,7 @@
   position: sticky;
   top: 70px; /* Start below the real estate header */
   height: calc(100vh - 70px);
+  height: calc(100dvh - 70px); /* Use dynamic viewport height for mobile */
   z-index: 999; /* Lower than header to scroll under it */
   transition: transform 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
@@ -242,8 +244,10 @@
   .sidebar {
     top: 60px; /* Adjust sidebar position for smaller mobile header */
     height: calc(100vh - 60px); /* Adjust height for smaller mobile header */
+    height: calc(100dvh - 60px); /* Use dynamic viewport height for mobile */
     width: 100%;
     max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px); /* Use dynamic viewport height for mobile */
   }
   
   .mobileOverlay {

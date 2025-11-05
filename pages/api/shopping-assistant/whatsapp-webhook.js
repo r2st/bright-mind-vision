@@ -2,6 +2,8 @@
 // Handles incoming messages and triggers AI product recommendations
 // Now using Groq LLM + RAG + Multi-Agent System
 
+import { memoryService } from '../../../services/memoryService.js';
+
 export default async function handler(req, res) {
   console.log('🔍 WhatsApp webhook called with method:', req.method);
   console.log('🔍 Request headers:', req.headers);
@@ -314,19 +316,25 @@ async function handleIncomingMessage(message, contact, receivingPhoneNumberId = 
       return;
     }
 
-    // Check if this is a greeting - don't send instant ack for greetings
-    const isGreeting = /^(hi|hello|hey|hola|how are you\b|good (morning|afternoon|evening)\b)/i.test(messageData.message.trim());
+    // Check if this is a greeting - respond with short welcome message
+    const isGreeting = /^(hi|hello|hey|hola|how are you\b|good (morning|afternoon|evening)\b)$/i.test(messageData.message.trim());
     
-    // Send instant human-like acknowledgment while AI processes (skip for greetings)
-    if (!isGreeting) {
-      const instantAck = getHumanLikeAcknowledgment(messageData.message);
-      if (instantAck) {
-        console.log('⚡ Sending instant human acknowledgment...');
-        // Send without waiting - fire and forget so it doesn't delay AI processing
-        sendWhatsAppMessage(messageData.from, instantAck, receivingPhoneNumberId).catch(err => {
-          console.error('⚠️ Failed to send instant acknowledgment:', err);
-        });
-      }
+    if (isGreeting) {
+      // Send a short, friendly greeting response instead of full AI recommendation
+      const greetingResponse = "Hello! 👋 Welcome to Bright Mind Vision!\n\nI'm here to help you discover luxury products. What would you like to explore?\n\nQuick replies:\n1. Handbags\n2. Watches\n3. Jewelry\n4. All products";
+      await sendWhatsAppMessage(messageData.from, greetingResponse, receivingPhoneNumberId);
+      await markMessageAsProcessed(messageData.id);
+      return;
+    }
+    
+    // Send instant human-like acknowledgment while AI processes
+    const instantAck = getHumanLikeAcknowledgment(messageData.message);
+    if (instantAck) {
+      console.log('⚡ Sending instant human acknowledgment...');
+      // Send without waiting - fire and forget so it doesn't delay AI processing
+      sendWhatsAppMessage(messageData.from, instantAck, receivingPhoneNumberId).catch(err => {
+        console.error('⚠️ Failed to send instant acknowledgment:', err);
+      });
     }
     
     // Trigger AI product recommendation using production API
@@ -388,7 +396,7 @@ async function handleQuickReplyAction(action, from, receivingPhoneNumberId = nul
                     process.env.URL || 
                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
                     'http://localhost:3000'; // Use localhost for server-side calls (even with ngrok)
-    const apiUrl = `${baseUrl}/api/meshai/langgraph-recommendation`;
+    const apiUrl = `${baseUrl}/api/shopping-assistant/langgraph-recommendation`;
     console.log('🌐 Calling LangGraph API:', apiUrl);
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -520,7 +528,6 @@ function getActionMessage(action) {
     'fashion': 'Show me all fashion products including bags, accessories, and luxury items',
     'brands': 'Show me products from luxury brands like Chanel, Hermès, Gucci, Louis Vuitton, Rolex, and La Mer',
     'price': 'Show me luxury products at different price ranges',
-    'handbags': 'Show me luxury handbags and bags from top brands',
     'more': 'Show me more luxury products in different categories',
     'home': 'Welcome! Show me your luxury product collection'
   };
@@ -548,12 +555,8 @@ function getFallbackMessage(action) {
 
 // Store message in database
 async function storeMessage(messageData) {
-  // Implement database storage
-  // This could be MongoDB, PostgreSQL, or any other database
-  console.log('Storing message:', messageData);
-  
-  // For now, just log the message
-  // In production, save to your database
+  // TODO: Implement database storage (MongoDB, PostgreSQL, etc.)
+  console.log('Storing message:', messageData.id);
 }
 
 // Trigger AI-Integrated recommendation using Groq LLM + RAG + Multi-Agent
@@ -576,17 +579,46 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
       ? { message: getActionMessage(quickReply) }
       : { message };
     
-    const requestBody = {
-      ...payload,
-      customerId: `whatsapp-${messageData.from}`,
-      context: {
-        source: 'whatsapp',
-        conversationId: `wa_${messageData.from}`,
-        timestamp: new Date().toISOString()
-      }
+    // Get conversation context to include customer name and product context
+    const conversationId = `wa_${messageData.from}`;
+    const customerId = `whatsapp-${messageData.from}`;
+    const memoryContext = memoryService.getConversationContext(conversationId, customerId);
+    
+    // Update customer name if we have it from contact info
+    if (messageData.name && messageData.name !== 'Unknown' && !memoryContext.customerName) {
+      memoryContext.customerName = messageData.name;
+      memoryService.updateConversationContext(conversationId, memoryContext);
+    }
+    
+    // Build context with product information
+    const context = {
+      source: 'whatsapp',
+      conversationId: conversationId,
+      timestamp: new Date().toISOString(),
+      customerName: memoryContext.customerName || messageData.name
     };
     
-    const apiUrl = `${baseUrl}/api/meshai/langgraph-recommendation`;
+    // Include product context if available
+    if (memoryContext.currentProduct) {
+      context.currentProduct = memoryContext.currentProduct;
+    }
+    if (memoryContext.recentProducts && memoryContext.recentProducts.length > 0) {
+      context.recentProducts = memoryContext.recentProducts;
+    }
+    if (memoryContext.conversationState) {
+      context.conversationState = memoryContext.conversationState;
+    }
+    if (memoryContext.lastCategory) {
+      context.lastCategory = memoryContext.lastCategory;
+    }
+    
+    const requestBody = {
+      ...payload,
+      customerId: customerId,
+      context: context
+    };
+    
+    const apiUrl = `${baseUrl}/api/shopping-assistant/langgraph-recommendation`;
     console.log('🌐 Calling LangGraph API:', apiUrl);
     console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
     
@@ -691,86 +723,15 @@ function formatProductionResponse(response) {
 
 // Mark message as AI processed
 async function markMessageAsProcessed(messageId) {
-  // Update message status in database
+  // TODO: Implement database update
   console.log('Marking message as processed:', messageId);
-}
-
-// Send typing indicator
-async function sendTypingIndicator(to) {
-  try {
-    console.log('⌨️ Sending typing indicator to:', to);
-    
-    // Normalize phone number for test check
-    const normalizedTo = to.replace(/^\+/, '').replace(/\s/g, '');
-    const isTestNumber = TEST_PHONE_NUMBERS.includes(normalizedTo);
-    
-    const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: to,
-        type: 'text',
-        text: {
-          body: '...'
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { error: { message: errorText } };
-      }
-      
-      // Check if it's the "not in allowed list" error for test numbers
-      const isNotAllowedError = errorData.error?.code === 131030 || 
-                                errorText.includes('not in allowed list');
-      
-      if (isNotAllowedError && isTestNumber) {
-        // For test numbers, log but don't fail - this is expected
-        console.log(`⚠️ Typing indicator: Test number ${to} not in allowed list (expected for local testing)`);
-        return true; // Return success so flow continues
-      }
-      
-      console.error('❌ Typing indicator failed:', response.status, errorData);
-      return false;
-    }
-
-    console.log('✅ Typing indicator sent successfully');
-    return true;
-  } catch (error) {
-    // For test numbers, don't fail on typing indicator errors
-    const normalizedTo = to.replace(/^\+/, '').replace(/\s/g, '');
-    const isTestNumber = TEST_PHONE_NUMBERS.includes(normalizedTo);
-    
-    if (isTestNumber && error.message?.includes('not in allowed list')) {
-      console.log(`⚠️ Typing indicator: Test number ${to} - would work if number was in allowed list`);
-      return true; // Return success so flow continues
-    }
-    
-    console.error('❌ Error sending typing indicator:', error);
-    return false;
-  }
-}
-
-// Send error message helper
-async function sendErrorMessage(to) {
-  return await sendWhatsAppMessage(to, "I'm having trouble processing your request right now. Please try again in a moment.");
 }
 
 // List of test numbers that we'll handle gracefully (log but don't throw errors)
 const TEST_PHONE_NUMBERS = [
   '1234567890',           // Default test number from test script
   '919108458006',         // User's test number
-  '+919108458006',        // With country code
-  '1234567890'            // Common test number
+  '+919108458006'         // With country code
 ].map(num => num.replace(/^\+/, '')); // Normalize (remove + for comparison)
 
 // Send WhatsApp message

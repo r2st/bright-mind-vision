@@ -93,7 +93,7 @@ async function getWhatsAppStatus() {
       status.webhookInfo = {
         url: webhookUrl,
         verifyToken: verifyToken ? '✅ Set' : '❌ Missing',
-        endpoint: `${webhookUrl}/api/meshai/whatsapp-webhook`
+        endpoint: `${webhookUrl}/api/shopping-assistant/whatsapp-webhook`
       };
     }
 

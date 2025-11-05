@@ -91,6 +91,12 @@ async function handleRequest(req, res) {
     const memoryContext = memoryService.getConversationContext(conversationId, customer);
     const hasRecentCategory = memoryContext.lastCategory;
     
+    // Update customer name if provided in context
+    if (context?.customerName && context.customerName !== 'Unknown' && !memoryContext.customerName) {
+      memoryContext.customerName = context.customerName;
+      memoryService.updateConversationContext(conversationId, memoryContext);
+    }
+    
     if (quickReply) {
       // Handle quick reply with context awareness
       result = await langGraphOrchestrator.handleContextualQuickReply(quickReply, conversationId, customer, hasRecentCategory);
@@ -126,13 +132,29 @@ async function handleRequest(req, res) {
       };
     }
 
-    // Update metadata
+    // Update metadata - preserve cart data if present
     result.metadata = {
       ...result.metadata,
       api_version: 'langgraph-v1.0',
       conversationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      // Preserve cart if it exists in metadata
+      cart: result.metadata?.cart || null
     };
+    
+    // If cart operations happened, try to fetch current cart
+    if (customer && (message?.toLowerCase().includes('cart') || 
+                     message?.toLowerCase().includes('checkout') ||
+                     quickReply === 3)) {
+      try {
+        const currentCart = await memoryService.getCart(customer);
+        if (currentCart && currentCart.items && currentCart.items.length > 0) {
+          result.metadata.cart = currentCart;
+        }
+      } catch (error) {
+        console.warn('Could not fetch cart for metadata:', error.message);
+      }
+    }
 
     return res.status(200).json(result);
 

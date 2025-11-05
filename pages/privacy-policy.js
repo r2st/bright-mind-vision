@@ -6,8 +6,8 @@ const PrivacyPolicy = () => {
   return (
     <>
       <Head>
-        <title>Privacy Policy - Meshai WhatsApp Integration</title>
-        <meta name="description" content="Privacy Policy for Meshai WhatsApp Business Integration" />
+        <title>Privacy Policy - Shopping Assistant WhatsApp Integration</title>
+        <meta name="description" content="Privacy Policy for Shopping Assistant WhatsApp Business Integration" />
         <meta name="robots" content="index, follow" />
       </Head>
       
@@ -19,7 +19,7 @@ const PrivacyPolicy = () => {
           <section className={styles.section}>
             <h2>1. Introduction</h2>
             <p>
-              This Privacy Policy describes how Meshai ("we," "our," or "us") collects, uses, and shares information 
+              This Privacy Policy describes how Shopping Assistant ("we," "our," or "us") collects, uses, and shares information 
               when you interact with our WhatsApp Business integration service. This service provides AI-powered product 
               recommendations through WhatsApp messaging.
             </p>
@@ -149,7 +149,7 @@ const PrivacyPolicy = () => {
             <h2>12. Contact Information</h2>
             <p>If you have any questions about this Privacy Policy or our data practices, please contact us:</p>
             <div className={styles.contactInfo}>
-              <p><strong>Email:</strong> privacy@meshaiservice.com</p>
+              <p><strong>Email:</strong> privacy@brightmindvision.com</p>
               <p><strong>WhatsApp:</strong> +1-XXX-XXX-XXXX</p>
               <p><strong>Address:</strong> Bright Mind Vision, Privacy Department</p>
             </div>

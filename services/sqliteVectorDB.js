@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 
 /**
  * SQLite Vector Database Service
@@ -15,7 +16,6 @@ class SQLiteVectorDB {
   init() {
     try {
       // Ensure data directory exists
-      const fs = require('fs');
       const dataDir = path.dirname(this.dbPath);
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });

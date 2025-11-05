@@ -334,24 +334,53 @@
     height: 60px !important;
     min-height: 60px;
     max-height: 60px;
+    padding-top: env(safe-area-inset-top, 0);
   }
   
   .container {
     padding: 0 15px;
+    padding-left: max(15px, env(safe-area-inset-left, 15px));
+    padding-right: max(15px, env(safe-area-inset-right, 15px));
     height: 60px !important;
     min-height: 60px;
     max-height: 60px;
   }
   
   .logoImage {
-    height: 45px;
+    height: 40px;
+    max-width: 100%;
   }
   
   .logo h1 {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .mobileNav {
     top: 60px;
+    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px); /* Use dynamic viewport height */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .menuButton {
+    min-width: 44px; /* iOS touch target */
+    min-height: 44px;
+    padding: 0.5rem;
+  }
+  
+  .mobileNavLink {
+    padding: 1rem 1.5rem;
+    min-height: 44px; /* iOS touch target */
+    display: flex;
+    align-items: center;
+  }
+  
+  .mobileDropdownToggle {
+    padding: 1rem 1.5rem;
+    min-height: 44px; /* iOS touch target */
   }
 }

@@ -14,7 +14,8 @@ const ClinicLayout = ({ children, activeMenu: propActiveMenu, setActiveMenu: pro
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      minHeight: '100vh' 
+      minHeight: '100vh',
+      minHeight: '100dvh' /* Use dynamic viewport height for mobile */
     }}>
       
       <div className={styles.clinicContent}>

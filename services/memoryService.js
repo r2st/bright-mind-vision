@@ -1,15 +1,19 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { tursoOrderService } from './tursoOrderService.js';
 
 /**
  * Memory Service for AI Shopping Assistant
  * Provides short-term and long-term memory capabilities
+ * Uses Turso for orders/carts (serverless-compatible) when available
+ * Falls back to local SQLite for development
  */
 class MemoryService {
   constructor() {
     this.db = null; // Initialize to null
     this.dbPath = path.join(process.cwd(), 'data', 'conversation_memory.db');
+    this.tursoOrderService = tursoOrderService;
     this.init();
   }
 
@@ -66,21 +70,86 @@ class MemoryService {
         FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
       )
     `);
+
+    // Shopping carts
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS carts (
+        cart_id TEXT PRIMARY KEY,
+        customer_id TEXT,
+        items TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        abandoned_at TEXT,
+        FOREIGN KEY (customer_id) REFERENCES customer_preferences(customer_id)
+      )
+    `);
+
+    // Orders
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS orders (
+        order_id TEXT PRIMARY KEY,
+        customer_id TEXT,
+        cart_id TEXT,
+        items TEXT,
+        subtotal REAL,
+        shipping_cost REAL,
+        tax REAL,
+        discount REAL,
+        total REAL,
+        currency TEXT,
+        status TEXT,
+        shipping_address TEXT,
+        billing_address TEXT,
+        payment_method TEXT,
+        payment_status TEXT,
+        payment_transaction_id TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        shipped_at TEXT,
+        delivered_at TEXT,
+        FOREIGN KEY (customer_id) REFERENCES customer_preferences(customer_id),
+        FOREIGN KEY (cart_id) REFERENCES carts(cart_id)
+      )
+    `);
+
+    // Returns and refunds
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS returns (
+        return_id TEXT PRIMARY KEY,
+        order_id TEXT,
+        customer_id TEXT,
+        items TEXT,
+        reason TEXT,
+        status TEXT,
+        refund_amount REAL,
+        refund_status TEXT,
+        created_at TEXT,
+        processed_at TEXT,
+        FOREIGN KEY (order_id) REFERENCES orders(order_id),
+        FOREIGN KEY (customer_id) REFERENCES customer_preferences(customer_id)
+      )
+    `);
   }
 
   // Get or create conversation context
   getConversationContext(conversationId, customerId = null) {
-    // Safe fallback if database is not available
-    if (!this.db) {
-      console.warn('⚠️ Memory Service: Database not initialized, using in-memory context');
-      return {
-        lastCategory: null,
-        conversationId,
-        customerId,
-        timestamp: new Date().toISOString(),
-        messageCount: 0
-      };
-    }
+      // Safe fallback if database is not available
+      if (!this.db) {
+        console.warn('⚠️ Memory Service: Database not initialized, using in-memory context');
+        return {
+          lastCategory: null,
+          conversationId,
+          customerId,
+          timestamp: new Date().toISOString(),
+          messageCount: 0,
+          previousInterests: [],
+          conversationFlow: [],
+          customerName: null,
+          currentProduct: null,
+          recentProducts: [],
+          conversationState: 'browsing'
+        };
+      }
 
     try {
       const stmt = this.db.prepare(`
@@ -98,7 +167,13 @@ class MemoryService {
         conversationId,
         customerId,
         timestamp: new Date().toISOString(),
-        messageCount: 0
+        messageCount: 0,
+        previousInterests: [],
+        conversationFlow: [],
+        customerName: null,
+        currentProduct: null,
+        recentProducts: [],
+        conversationState: 'browsing' // browsing, product_detail, comparing, recommending
       };
       
       const insertStmt = this.db.prepare(`
@@ -122,7 +197,13 @@ class MemoryService {
         conversationId,
         customerId,
         timestamp: new Date().toISOString(),
-        messageCount: 0
+        messageCount: 0,
+        previousInterests: [],
+        conversationFlow: [],
+        customerName: null,
+        currentProduct: null,
+        recentProducts: [],
+        conversationState: 'browsing'
       };
     }
   }
@@ -284,6 +365,401 @@ class MemoryService {
       timestamp: new Date().toISOString()
     });
     this.updateCustomerPreferences(customerId, preferences);
+  }
+
+  // Cart Management
+  async getCart(customerId) {
+    // Try Turso first (serverless-compatible)
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoCart = await this.tursoOrderService.getCart(customerId);
+      if (tursoCart !== null) {
+        return tursoCart;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return { items: [], total: 0, currency: 'AED' };
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM carts WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 1
+      `);
+      const result = stmt.get(customerId);
+      
+      if (!result) {
+        return { items: [], total: 0, currency: 'AED' };
+      }
+
+      const items = JSON.parse(result.items || '[]');
+      const total = items.reduce((sum, item) => {
+        const price = typeof item.price === 'object' ? item.price.amount : item.price;
+        return sum + (price * item.quantity);
+      }, 0);
+
+      return {
+        cart_id: result.cart_id,
+        items: items,
+        total: total,
+        currency: 'AED',
+        created_at: result.created_at,
+        updated_at: result.updated_at
+      };
+    } catch (error) {
+      console.error('Error getting cart:', error);
+      return { items: [], total: 0, currency: 'AED' };
+    }
+  }
+
+  async updateCart(customerId, items) {
+    // Try Turso first (serverless-compatible)
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoResult = await this.tursoOrderService.updateCart(customerId, items);
+      if (tursoResult !== null) {
+        return tursoResult;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      console.warn('⚠️ Memory Service: Database not initialized, skipping cart update');
+      return;
+    }
+
+    try {
+      // Get existing cart or create new
+      const existingCart = await this.getCart(customerId);
+      const cartId = existingCart.cart_id || `cart_${customerId}_${Date.now()}`;
+
+      const stmt = this.db.prepare(`
+        INSERT INTO carts (cart_id, customer_id, items, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(cart_id) DO UPDATE SET
+          items = excluded.items,
+          updated_at = excluded.updated_at,
+          abandoned_at = NULL
+      `);
+
+      const now = new Date().toISOString();
+      stmt.run(
+        cartId,
+        customerId,
+        JSON.stringify(items),
+        existingCart.created_at || now,
+        now
+      );
+
+      return { cart_id: cartId, items, updated_at: now };
+    } catch (error) {
+      console.error('Error updating cart:', error);
+    }
+  }
+
+  async clearCart(customerId) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      await this.tursoOrderService.clearCart(customerId);
+      return;
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE carts SET items = ?, updated_at = ?, abandoned_at = ?
+        WHERE customer_id = ?
+      `);
+      stmt.run('[]', new Date().toISOString(), new Date().toISOString(), customerId);
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+    }
+  }
+
+  async markCartAbandoned(customerId) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      await this.tursoOrderService.markCartAbandoned(customerId);
+      return;
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE carts SET abandoned_at = ? WHERE customer_id = ? AND abandoned_at IS NULL
+      `);
+      stmt.run(new Date().toISOString(), customerId);
+    } catch (error) {
+      console.error('Error marking cart as abandoned:', error);
+    }
+  }
+
+  // Order Management
+  async createOrder(orderData) {
+    // Try Turso first (serverless-compatible)
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoOrderId = await this.tursoOrderService.createOrder(orderData);
+      if (tursoOrderId !== null) {
+        return tursoOrderId;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      console.warn('⚠️ Memory Service: Database not initialized, skipping order creation');
+      return null;
+    }
+
+    try {
+      const orderId = orderData.order_id || `order_${orderData.customer_id}_${Date.now()}`;
+      const stmt = this.db.prepare(`
+        INSERT INTO orders (
+          order_id, customer_id, cart_id, items, subtotal, shipping_cost, tax, discount, total, currency,
+          status, shipping_address, billing_address, payment_method, payment_status, payment_transaction_id,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const now = new Date().toISOString();
+      stmt.run(
+        orderId,
+        orderData.customer_id,
+        orderData.cart_id || null,
+        JSON.stringify(orderData.items || []),
+        orderData.subtotal || 0,
+        orderData.shipping_cost || 0,
+        orderData.tax || 0,
+        orderData.discount || 0,
+        orderData.total || 0,
+        orderData.currency || 'AED',
+        orderData.status || 'pending',
+        JSON.stringify(orderData.shipping_address || {}),
+        JSON.stringify(orderData.billing_address || {}),
+        orderData.payment_method || null,
+        orderData.payment_status || 'pending',
+        orderData.payment_transaction_id || null,
+        now,
+        now
+      );
+
+      return orderId;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      return null;
+    }
+  }
+
+  async getOrder(orderId) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoOrder = await this.tursoOrderService.getOrder(orderId);
+      if (tursoOrder !== null) {
+        return tursoOrder;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return null;
+    }
+
+    try {
+      const stmt = this.db.prepare(`SELECT * FROM orders WHERE order_id = ?`);
+      const result = stmt.get(orderId);
+      
+      if (!result) {
+        return null;
+      }
+
+      return {
+        order_id: result.order_id,
+        customer_id: result.customer_id,
+        cart_id: result.cart_id,
+        items: JSON.parse(result.items || '[]'),
+        subtotal: result.subtotal,
+        shipping_cost: result.shipping_cost,
+        tax: result.tax,
+        discount: result.discount,
+        total: result.total,
+        currency: result.currency,
+        status: result.status,
+        shipping_address: JSON.parse(result.shipping_address || '{}'),
+        billing_address: JSON.parse(result.billing_address || '{}'),
+        payment_method: result.payment_method,
+        payment_status: result.payment_status,
+        payment_transaction_id: result.payment_transaction_id,
+        created_at: result.created_at,
+        updated_at: result.updated_at,
+        shipped_at: result.shipped_at,
+        delivered_at: result.delivered_at
+      };
+    } catch (error) {
+      console.error('Error getting order:', error);
+      return null;
+    }
+  }
+
+  async getOrderHistory(customerId, limit = 10) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoHistory = await this.tursoOrderService.getOrderHistory(customerId, limit);
+      if (tursoHistory !== null && tursoHistory !== undefined) {
+        return tursoHistory;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return [];
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT ?
+      `);
+      const results = stmt.all(customerId, limit);
+      
+      return results.map(result => ({
+        order_id: result.order_id,
+        items: JSON.parse(result.items || '[]'),
+        total: result.total,
+        currency: result.currency,
+        status: result.status,
+        created_at: result.created_at,
+        updated_at: result.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting order history:', error);
+      return [];
+    }
+  }
+
+  async updateOrderStatus(orderId, status, additionalData = {}) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      await this.tursoOrderService.updateOrderStatus(orderId, status, additionalData);
+      return;
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      const updates = ['status = ?', 'updated_at = ?'];
+      const values = [status, new Date().toISOString()];
+
+      if (status === 'shipped' && !additionalData.shipped_at) {
+        updates.push('shipped_at = ?');
+        values.push(new Date().toISOString());
+      }
+      if (status === 'delivered' && !additionalData.delivered_at) {
+        updates.push('delivered_at = ?');
+        values.push(new Date().toISOString());
+      }
+      if (additionalData.payment_status) {
+        updates.push('payment_status = ?');
+        values.push(additionalData.payment_status);
+      }
+      if (additionalData.payment_transaction_id) {
+        updates.push('payment_transaction_id = ?');
+        values.push(additionalData.payment_transaction_id);
+      }
+
+      values.push(orderId);
+      const stmt = this.db.prepare(`
+        UPDATE orders SET ${updates.join(', ')} WHERE order_id = ?
+      `);
+      stmt.run(...values);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
+  }
+
+  // Returns and Refunds
+  async createReturn(returnData) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      const tursoReturnId = await this.tursoOrderService.createReturn(returnData);
+      if (tursoReturnId !== null) {
+        return tursoReturnId;
+      }
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return null;
+    }
+
+    try {
+      const returnId = returnData.return_id || `return_${returnData.order_id}_${Date.now()}`;
+      const stmt = this.db.prepare(`
+        INSERT INTO returns (
+          return_id, order_id, customer_id, items, reason, status, refund_amount, refund_status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const now = new Date().toISOString();
+      stmt.run(
+        returnId,
+        returnData.order_id,
+        returnData.customer_id,
+        JSON.stringify(returnData.items || []),
+        returnData.reason || '',
+        returnData.status || 'pending',
+        returnData.refund_amount || 0,
+        returnData.refund_status || 'pending',
+        now
+      );
+
+      return returnId;
+    } catch (error) {
+      console.error('Error creating return:', error);
+      return null;
+    }
+  }
+
+  async updateReturnStatus(returnId, status, refundStatus = null) {
+    // Try Turso first
+    if (this.tursoOrderService.isAvailable()) {
+      await this.tursoOrderService.updateReturnStatus(returnId, status, refundStatus);
+      return;
+    }
+
+    // Fallback to local SQLite
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      const updates = ['status = ?', 'updated_at = ?'];
+      const values = [status, new Date().toISOString()];
+
+      if (refundStatus) {
+        updates.push('refund_status = ?');
+        values.push(refundStatus);
+        if (refundStatus === 'completed') {
+          updates.push('processed_at = ?');
+          values.push(new Date().toISOString());
+        }
+      }
+
+      values.push(returnId);
+      const stmt = this.db.prepare(`
+        UPDATE returns SET ${updates.join(', ')} WHERE return_id = ?
+      `);
+      stmt.run(...values);
+    } catch (error) {
+      console.error('Error updating return status:', error);
+    }
   }
 }
 

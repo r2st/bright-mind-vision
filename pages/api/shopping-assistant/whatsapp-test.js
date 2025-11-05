@@ -63,7 +63,7 @@ async function testStatus() {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   
   try {
-    const response = await fetch(`${baseUrl}/api/meshai/whatsapp-status`);
+    const response = await fetch(`${baseUrl}/api/shopping-assistant/whatsapp-status`);
     const status = await response.json();
     
     return {
@@ -85,9 +85,9 @@ async function testSendMessage(phoneNumber) {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   
   try {
-    const testMessage = "🧪 Test message from Meshai WhatsApp integration! This is a test to verify your WhatsApp Business API is working correctly.";
+    const testMessage = "🧪 Test message from Shopping Assistant WhatsApp integration! This is a test to verify your WhatsApp Business API is working correctly.";
     
-    const response = await fetch(`${baseUrl}/api/meshai/whatsapp-send`, {
+    const response = await fetch(`${baseUrl}/api/shopping-assistant/whatsapp-send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ async function testWebhook() {
   
   try {
     // Test webhook verification
-    const verifyUrl = `${baseUrl}/api/meshai/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN}&hub.challenge=test123`;
+    const verifyUrl = `${baseUrl}/api/shopping-assistant/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN}&hub.challenge=test123`;
     
     const response = await fetch(verifyUrl);
     const challenge = await response.text();

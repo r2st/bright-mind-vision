@@ -50,3 +50,9 @@ test-whatsapp-*.js
 
 # Test folder (exclude from deployment)
 test/
+
+# Auto-generated database files (created at runtime)
+data/*.db
+data/*.db-*
+data/*.db-shm
+data/*.db-wal

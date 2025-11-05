@@ -322,7 +322,15 @@ export const normalizedProductCatalog = [
       color: "Black",
       gender: "Women",
       collection: "Galleria",
-      size: "Medium"
+      size: "Medium",
+      dimensions: "W 35cm × H 25cm × D 17cm",
+      weight: "1.2 kg",
+      closure: "Top zip closure",
+      handles: "Double top handles",
+      strap: "Detachable shoulder strap",
+      interior: "Lined interior with zip pocket",
+      hardware: "Saffiano leather with triangular logo plaque",
+      care: "Clean with dry cloth, avoid moisture"
     },
     badges: ["classic", "professional", "durable"],
     images: ["👜"],
@@ -330,9 +338,46 @@ export const normalizedProductCatalog = [
     compliance: { age_restricted: false },
     updated_at: "2025-10-29T09:12:00Z",
     description: "Elegant Saffiano leather bag with triangular logo plaque. Perfect for work or weekend.",
+    detailedDescription: "The Prada Galleria Saffiano Leather Bag is a timeless classic that embodies Italian craftsmanship and elegance. Crafted from premium Saffiano leather—a distinctive cross-hatched texture that's both scratch-resistant and durable—this bag features Prada's iconic triangular logo plaque. The structured silhouette is perfect for the modern professional, offering ample space for daily essentials while maintaining a sophisticated appearance. The bag includes a detachable shoulder strap for versatility, interior organization with zip pockets, and a top zip closure for security. Available in multiple sizes and colors, the Galleria is a versatile investment piece that transitions seamlessly from office to evening.",
+    features: [
+      "Premium Saffiano leather construction",
+      "Scratch-resistant and durable",
+      "Iconic triangular logo plaque",
+      "Detachable shoulder strap",
+      "Structured, professional silhouette",
+      "Interior organization pockets",
+      "Top zip closure",
+      "Handcrafted in Italy"
+    ],
+    pros: [
+      "Durable and scratch-resistant Saffiano leather",
+      "Timeless, professional design",
+      "Versatile for work and casual use",
+      "Spacious interior with organization",
+      "High-quality Italian craftsmanship",
+      "Classic Prada aesthetic"
+    ],
+    cons: [
+      "Premium pricing",
+      "Can be heavy when fully loaded",
+      "Limited color options in some sizes"
+    ],
+    useCases: [
+      "Professional work bag",
+      "Business meetings and conferences",
+      "Weekend travel",
+      "Formal events",
+      "Daily commute"
+    ],
+    careInstructions: "Clean with a dry, soft cloth. Avoid exposure to water and excessive moisture. Store in a dust bag when not in use. Keep away from direct sunlight and heat sources. For deep cleaning, consult a professional leather care specialist.",
+    warranty: "2-year manufacturer warranty. Includes guarantee against manufacturing defects. Prada offers worldwide after-sales service.",
     tags: ["luxury", "prada", "handbag", "saffiano", "professional"],
     rating: 4.7,
-    reviews: 112
+    reviews: 112,
+    reviewSummary: "Highly rated for durability, professional appearance, and timeless design. Customers appreciate the quality of Saffiano leather and the bag's versatility.",
+    relatedProducts: ["PRADA-CAHIER-BAG", "PRADA-RE-EDITION"],
+    styleNotes: "The Galleria bag is a staple in Prada's collection, known for its structured design and premium materials. It pairs well with professional attire, business casual, and can elevate a simple outfit.",
+    investmentValue: "The Prada Galleria maintains good resale value due to its classic design and brand reputation. Considered a solid investment piece in luxury handbags."
   },
   {
     sku: "CARTIER-SANTOS-WATCH",

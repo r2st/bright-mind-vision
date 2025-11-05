@@ -1,17 +1,24 @@
 .main {
   flex: 1;
   margin-top: 90px; /* Default desktop header height */
+  min-height: calc(100vh - 90px);
+  min-height: calc(100dvh - 90px); /* Use dynamic viewport height for mobile */
 }
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .main {
     margin-top: 70px; /* Mobile header height */
+    min-height: calc(100vh - 70px);
+    min-height: calc(100dvh - 70px); /* Use dynamic viewport height for mobile */
   }
 }
 
 @media (max-width: 480px) {
   .main {
     margin-top: 60px; /* Small mobile header height */
+    min-height: calc(100vh - 60px);
+    min-height: calc(100dvh - 60px); /* Use dynamic viewport height for mobile */
+    padding-top: env(safe-area-inset-top, 0);
   }
 }
