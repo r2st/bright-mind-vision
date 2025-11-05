@@ -561,6 +561,9 @@ async function storeMessage(messageData) {
 
 // Trigger AI-Integrated recommendation using Groq LLM + RAG + Multi-Agent
 async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId = null) {
+  const startTime = Date.now();
+  const TIMEOUT_MS = 30000; // 30 second timeout
+  
   try {
     console.log('🤖 Triggering AI-integrated recommendation for:', messageData.from);
     
@@ -622,13 +625,24 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
     console.log('🌐 Calling LangGraph API:', apiUrl);
     console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
     
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
+    // Create timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Request timeout: API call took longer than 30 seconds'));
+      }, TIMEOUT_MS);
     });
+    
+    // Race between API call and timeout
+    const response = await Promise.race([
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      }),
+      timeoutPromise
+    ]);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -637,7 +651,8 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
     }
     
     const result = await response.json();
-    console.log('✅ LangGraph API response received:', JSON.stringify(result, null, 2));
+    const duration = Date.now() - startTime;
+    console.log(`✅ LangGraph API response received (${duration}ms):`, JSON.stringify(result, null, 2));
     console.log('🔍 Response structure check:', {
       hasSuccess: 'success' in result,
       success: result.success,
@@ -650,8 +665,18 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
       console.error('❌ AI recommendation failed:', result.error);
       console.error('❌ Full error details:', JSON.stringify(result, null, 2));
       
-      // Try to send a more helpful error message
-      const errorMsg = result.error || result.message || "I'm having trouble processing your request right now.";
+      // Determine error type and provide helpful message
+      let errorMsg = "I'm having trouble processing your request right now.";
+      if (result.error) {
+        if (result.error.includes('timeout') || result.error.includes('time')) {
+          errorMsg = "I'm taking longer than expected to process your request. Please try again in a moment.";
+        } else if (result.error.includes('rate limit') || result.error.includes('429')) {
+          errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
+        } else if (result.error.includes('not found') || result.error.includes('404')) {
+          errorMsg = "I couldn't find what you're looking for. Could you please try rephrasing your request?";
+        }
+      }
+      
       await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
       return;
     }
@@ -670,17 +695,35 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
     }
     
   } catch (error) {
-    console.error('❌ Production AI recommendation failed:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.error('❌ Error details:', {
-      message: error.message,
-      name: error.name,
-      cause: error.cause
+    const duration = Date.now() - startTime;
+    console.error('❌ Production AI recommendation failed:', {
+      error: error.message,
+      errorType: error.name,
+      duration: `${duration}ms`,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      cause: error.cause,
+      query: messageData.message?.substring(0, 100)
     });
+    
+    // Determine appropriate error message based on error type
+    let errorMsg = "I'm sorry, I'm having trouble processing your request right now.";
+    
+    if (error.message.includes('timeout')) {
+      errorMsg = "I'm taking longer than expected. Please try a simpler request or try again in a moment.";
+    } else if (error.message.includes('fetch') || error.message.includes('network')) {
+      errorMsg = "I'm having connection issues. Please try again in a moment.";
+    } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+      errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
+    } else if (error.message.includes('API key') || error.message.includes('unauthorized')) {
+      errorMsg = "I'm experiencing a technical issue. Our team has been notified.";
+      console.error('🚨 CRITICAL: API key or authentication issue detected');
+    }
+    
     try {
-      await sendWhatsAppMessage(messageData.from, "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment.", receivingPhoneNumberId);
+      await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
     } catch (sendError) {
       console.error('❌ Failed to send error message:', sendError);
+      // Log but don't throw - we don't want to break the webhook
     }
   }
 }

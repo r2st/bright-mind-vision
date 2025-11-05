@@ -3061,6 +3061,58 @@ Do NOT add explanations, comments, or any other text.`
     // Store query in state for later use
     state.query = query;
     
+    // Extract product name early for product_details intent
+    if (state.currentIntent === 'product_details' && !state.detectedProductName) {
+      // Try to extract product name from various patterns (most specific first)
+      const productNamePatterns = [
+        // Pattern: "[Product Name], tell me more about it" (with comma)
+        /^([^,]+?),\s*(?:tell me more|tell me about|details|info)/i,
+        // Pattern: "[Product Name] tell me more" (without comma)
+        /^([^,]+?)\s+(?:tell me more|tell me about|details|info)/i,
+        // Pattern: "tell me more about [Product Name]"
+        /tell\s+me\s+(?:more\s+)?about\s+(.+?)(?:\s*,\s*(?:tell|it)|\s*$)/i,
+        // Pattern: "what is [Product Name]"
+        /what\s+is\s+(.+?)(?:\s*$|\s*,)/i,
+        // Pattern: "[Product Name] details"
+        /^(.+?)\s+details/i,
+        // Pattern: Just product name at start (brand + model) - improved to catch more variations
+        /^(?:the\s+)?(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis\s+vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van\s+cleef|arpels|bvlgari)\s+(?:classic|serpenti|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster|flap|bag|watch|saddle|medium|small|large|mini|maxi).*?(?=\s*,|\s+$|$)/i
+      ];
+      
+      for (const pattern of productNamePatterns) {
+        const match = query.match(pattern);
+        if (match && match[1]) {
+          let extractedName = match[1].trim();
+          // Remove quotes if present
+          extractedName = extractedName.replace(/^["']+|["']+$/g, '').trim();
+          // Remove trailing punctuation and whitespace
+          extractedName = extractedName.replace(/[.,;:!?\s]+$/, '').trim();
+          
+          // Additional cleanup: remove "about it" if present
+          extractedName = extractedName.replace(/\s+about\s+it$/i, '').trim();
+          
+          if (extractedName && extractedName.length > 3) {
+            state.detectedProductName = extractedName;
+            console.log(`📝 Early extraction: Product name from query: "${extractedName}"`);
+            break;
+          }
+        }
+      }
+      
+      // If still no extraction, try a simpler approach: extract everything before comma + "tell me"
+      if (!state.detectedProductName && query.includes(',') && query.includes('tell')) {
+        const parts = query.split(',');
+        if (parts.length >= 2) {
+          const potentialName = parts[0].trim();
+          const rest = parts.slice(1).join(',').toLowerCase();
+          if (rest.includes('tell') && potentialName.length > 5) {
+            state.detectedProductName = potentialName.replace(/^["']+|["']+$/g, '').trim();
+            console.log(`📝 Fallback extraction: Product name from query: "${state.detectedProductName}"`);
+          }
+        }
+      }
+    }
+    
     // Store state reference for handlers that need it
     this.state = state;
     
@@ -3480,6 +3532,42 @@ Use this context to make responses more natural and context-aware. Reference pre
           console.log('⚠️ No tool calls for product_details, forcing get_product_details execution');
           
           const toolArgs = { customer_id: state.customerId };
+          
+          // First, try to extract product name from query if not already detected
+          if (!state.detectedProductName) {
+            // Try to extract product name from various patterns
+            const productNamePatterns = [
+              // Pattern: "[Product Name], tell me more about it"
+              /^([^,]+?),\s*(?:tell me more|tell me about|details|info)/i,
+              // Pattern: "[Product Name] tell me more"
+              /^([^,]+?)\s+(?:tell me more|tell me about|details|info)/i,
+              // Pattern: "tell me more about [Product Name]"
+              /tell\s+me\s+(?:more\s+)?about\s+(.+?)(?:\s*,\s*tell|\s*$)/i,
+              // Pattern: "what is [Product Name]"
+              /what\s+is\s+(.+?)(?:\s*$|\s*,)/i,
+              // Pattern: "[Product Name] details"
+              /^(.+?)\s+details/i,
+              // Pattern: Just product name at start (brand + model)
+              /^(?:the\s+)?(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van cleef|arpels|bvlgari)\s+(?:classic|serpenti|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster|flap|bag|watch|saddle|medium|small|large).*?(?=\s*,|\s+$|$)/i
+            ];
+            
+            for (const pattern of productNamePatterns) {
+              const match = query.match(pattern);
+              if (match && match[1]) {
+                let extractedName = match[1].trim();
+                // Remove quotes if present
+                extractedName = extractedName.replace(/^["']+|["']+$/g, '').trim();
+                // Remove trailing punctuation
+                extractedName = extractedName.replace(/[.,;:!?]+$/, '').trim();
+                
+                if (extractedName && extractedName.length > 3) {
+                  state.detectedProductName = extractedName;
+                  console.log(`📝 Extracted product name from query: "${extractedName}"`);
+                  break;
+                }
+              }
+            }
+          }
           
           // Use detected product name first
           if (state.detectedProductName) {

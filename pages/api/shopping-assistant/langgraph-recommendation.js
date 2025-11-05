@@ -4,8 +4,25 @@
 import { langGraphOrchestrator } from '../../../services/langGraphOrchestrator.js';
 import { memoryService } from '../../../services/memoryService.js';
 
+// Configure route for longer timeout (Vercel Pro/Enterprise)
+export const config = {
+  api: {
+    responseLimit: false,
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+  maxDuration: 60, // 60 seconds for Vercel Pro, 10s for Hobby
+};
+
 // Wrapper to ensure all errors return JSON
 async function handleRequest(req, res) {
+  const startTime = Date.now();
+  
+  // Set timeout warning
+  const timeoutWarning = setTimeout(() => {
+    console.warn('⚠️ Request taking longer than 20 seconds...');
+  }, 20000);
   // Set CORS headers for mobile compatibility
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -156,9 +173,15 @@ async function handleRequest(req, res) {
       }
     }
 
+    clearTimeout(timeoutWarning);
+    const duration = Date.now() - startTime;
+    console.log(`✅ Request completed in ${duration}ms`);
     return res.status(200).json(result);
 
   } catch (error) {
+    clearTimeout(timeoutWarning);
+    const duration = Date.now() - startTime;
+    console.error(`❌ Request failed after ${duration}ms`);
     // Safely get variables that might not be defined yet
     const safeMessage = typeof message !== 'undefined' ? message : null;
     const safeQuickReply = typeof quickReply !== 'undefined' ? quickReply : null;
