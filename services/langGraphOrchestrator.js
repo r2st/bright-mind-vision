@@ -4,6 +4,7 @@ import { enhancedRAGService } from './enhancedRAGService.js';
 import { tursoOrderService } from './tursoOrderService.js';
 import { advancedIntentDetector } from './advancedIntentDetector.js';
 import { widgetService } from './widgetService.js';
+import { conversationPersonality } from './conversationPersonality.js';
 
 /**
  * LangGraph-inspired State-Based Orchestrator
@@ -1166,21 +1167,34 @@ class LangGraphOrchestrator {
     const price = typeof product.price === 'object' ? product.price : { amount: product.price || 0, currency: product.currency || 'AED' };
     const attributes = product.attributes || {};
     
-    // Generate comprehensive product details using LLM
+    // Generate concise, human-like product details using LLM
+    // Keep it short and conversational - like a salesperson would talk
     let comprehensiveDetails = null;
     try {
       const detailsResponse = await llmProvider.chatCompletion([
         {
           role: 'system',
-          content: `You are a luxury shopping assistant. Generate comprehensive product details including:
-          - Key features and highlights
-          - Pros and cons (be honest and balanced)
-          - Use case recommendations (when to use this product)
-          - Care instructions (if applicable)
-          - Warranty information (if available)
-          - What makes this product special or worth the investment
-          
-          Keep it natural, engaging, and helpful. Format as a conversational description (3-4 sentences).`
+          content: conversationPersonality.getSystemPrompt({
+            customerName: null,
+            previousInterests: [],
+            conversationHistory: []
+          }) + `
+
+When describing a product, be CONCISE and CONVERSATIONAL:
+- Keep it to 2-3 short sentences max
+- Focus on the most important highlights (what makes it special)
+- Use natural, friendly language - like you're talking to a friend
+- Don't list everything - just the key points that matter
+- Be enthusiastic but genuine
+- Ask a follow-up question to keep the conversation going
+
+Example good response:
+"The Bose QC35 II features industry-leading noise cancellation, premium audio quality, and is lightweight (235g) for all-day comfort. Would you also like to add a protective case for ₹1,499?"
+
+Example bad response (too long):
+"Here are the details for Bose QC35 II. It has industry-leading noise cancellation technology that blocks out ambient sounds. The premium audio quality delivers crisp, clear sound. It weighs 235g making it comfortable for all-day wear. The battery lasts 20 hours. It has Bluetooth connectivity. It comes with a carrying case. The design is sleek and modern. It's perfect for travel, commuting, or office use. The noise cancellation has multiple levels. It's compatible with voice assistants..."
+
+Remember: SHORT, CONVERSATIONAL, and ask what they want to know next.`
         },
         {
           role: 'user',
@@ -1191,7 +1205,12 @@ Attributes: ${JSON.stringify(attributes)}
 Rating: ${product.rating || 'N/A'}
 Badges/Features: ${product.badges ? product.badges.join(', ') : 'N/A'}
 
-Generate comprehensive product details that help the customer understand the product's value, use cases, and what makes it special.`
+Generate a SHORT, CONVERSATIONAL response (2-3 sentences max) that:
+1. Highlights the most important features (pick 2-3 key points)
+2. Mentions what makes it special or worth it
+3. Ends with a natural follow-up question
+
+Keep it brief and human-like - like you're chatting with a friend, not reading a product manual.`
         }
       ], {
         model: 'versatile',
@@ -1371,6 +1390,35 @@ Generate comprehensive product details that help the customer understand the pro
     const attributes = product.attributes || {};
     
     switch (attribute_type) {
+      case 'review':
+        // Generate review response using LLM
+        try {
+          const reviewResponse = await llmProvider.chatCompletion([
+            {
+              role: 'system',
+              content: `You are a luxury shopping assistant. Generate a helpful review summary for the product. Be concise (2-3 sentences), enthusiastic, and mention key positive aspects. If rating is available, include it.`
+            },
+            {
+              role: 'user',
+              content: `Product: ${product.title} by ${product.brand}
+Price: ${typeof product.price === 'object' ? `${product.price.amount} ${product.price.currency}` : `${product.price} ${product.currency || 'AED'}`}
+Description: ${product.description}
+Rating: ${product.rating || 'N/A'}
+Attributes: ${JSON.stringify(attributes)}
+
+Generate a brief review summary that highlights what customers love about this product.`
+            }
+          ], {
+            model: 'versatile',
+            temperature: 0.6
+          });
+          answer = reviewResponse.choices[0].message.content;
+        } catch (error) {
+          console.error('Error generating review response:', error);
+          const ratingText = product.rating ? ` with a ${product.rating}/5 rating` : '';
+          answer = `The ${product.title} has received excellent feedback from customers${ratingText}. It's known for its quality craftsmanship and timeless design.`;
+        }
+        break;
       case 'size':
         answer = attributes.size || attributes.dimensions || 'Size information not available';
         break;
@@ -1875,11 +1923,30 @@ Recommend the top 3 products with explanations.`
     // Update cart
     await memoryService.updateCart(customer_id, existingItems);
 
+    // Fetch cart fresh after update to ensure we have the latest data
+    // Add a small delay for Turso replication if needed
+    let updatedCart = await memoryService.getCart(customer_id);
+    
+    // If cart is empty but we just added items, retry once (Turso replication delay)
+    if ((!updatedCart || !updatedCart.items || updatedCart.items.length === 0) && existingItems.length > 0) {
+      console.log('⚠️ Cart appears empty after update, retrying after short delay...');
+      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+      updatedCart = await memoryService.getCart(customer_id);
+    }
+    
+    // Log cart state for debugging
+    console.log(`🛒 Cart after update:`, {
+      customer_id,
+      itemsCount: updatedCart?.items?.length || 0,
+      hasItems: !!(updatedCart?.items && updatedCart.items.length > 0),
+      cartItems: updatedCart?.items?.map(item => ({ sku: item.sku, title: item.title, quantity: item.quantity })) || []
+    });
+
     return {
       success: true,
       message: existingItemIndex >= 0 ? `Quantity updated in cart` : `Added to cart`,
       item: cartItem,
-      cart: await memoryService.getCart(customer_id)
+      cart: updatedCart || { items: existingItems, total: 0, currency: 'AED' } // Fallback to items we just added
     };
   }
 
@@ -3292,13 +3359,33 @@ Respond with ONLY the intent name, nothing else.`
     if (state.currentIntent === 'product_details' && state.detectedProductName) {
       // For product_details, use the detected product name
       // Try to find product in recent products or search for it
-      const productByName = recentProducts.find(p => {
+      let productByName = recentProducts.find(p => {
         const productTitle = (p.title || '').toLowerCase();
         const detectedLower = state.detectedProductName.toLowerCase();
         return productTitle === detectedLower || 
                productTitle.includes(detectedLower) ||
                detectedLower.includes(productTitle);
       });
+      
+      // If not found in recent products, try searching the catalog
+      if (!productByName) {
+        console.log(`🔍 Product not in recent products, searching catalog for: ${state.detectedProductName}`);
+        try {
+          const catalogProducts = await enhancedRAGService.searchProductsInCatalog(state.detectedProductName);
+          if (catalogProducts.length > 0) {
+            const detectedLower = state.detectedProductName.toLowerCase();
+            productByName = catalogProducts.find(p => {
+              const titleLower = (p.title || '').toLowerCase();
+              return titleLower === detectedLower || 
+                     titleLower.includes(detectedLower) ||
+                     detectedLower.includes(titleLower);
+            }) || catalogProducts[0]; // Use first match if no exact match
+            console.log(`✅ Found product in catalog: ${productByName.sku} - ${productByName.title}`);
+          }
+        } catch (error) {
+          console.warn('Error searching catalog for product:', error.message);
+        }
+      }
       
       if (productByName) {
         state.referencedProduct = productByName;
@@ -3544,9 +3631,15 @@ Respond with ONLY the intent name, nothing else.`
             state.variantResult = result;
           }
           
-          // Store product details result
+          // Store product details result - this takes priority for product detail queries
           if (toolName === 'get_product_details' && result.success) {
             state.productDetailsResult = result;
+            console.log(`✅ Stored productDetailsResult: ${result.product?.title || 'Unknown'}`);
+            // Clear toolResponse if it exists to ensure productDetailsResult takes priority
+            if (state.toolResponse) {
+              console.log(`⚠️ Clearing toolResponse to prioritize productDetailsResult`);
+              state.toolResponse = null;
+            }
           }
           
           // Store cart results
@@ -3590,13 +3683,11 @@ Respond with ONLY the intent name, nothing else.`
             const finalResponse = await llmProvider.chatCompletion([
         {
           role: 'system',
-          content: `Generate a natural, engaging response for a luxury shopping assistant. Use the tool results to provide accurate product recommendations.
-          
-          Context awareness:
-          - Reference previous conversation if relevant (e.g., "As we discussed earlier..." or "Building on your interest in...")
-          - Use the customer's name if provided to personalize the response
-          - Maintain conversation flow and acknowledge context switches naturally
-          - Sound human and conversational, not robotic`
+          content: conversationPersonality.getSystemPrompt({
+            customerName: state.customerName || state.context?.customerName,
+            previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+            conversationHistory: state.context?.conversationHistory || []
+          })
         },
         ...(state.context.conversationHistory && state.context.conversationHistory.length > 0 ? [
           {
@@ -3640,6 +3731,75 @@ Use this context to make responses more natural and context-aware. Reference pre
           }
       } else {
         // No tool calls made - check if we should force tool execution
+        // Force answer_product_question for product_qa intent (especially for reviews/questions)
+        if (state.currentIntent === 'product_qa') {
+          console.log('⚠️ No tool calls for product_qa, forcing answer_product_question execution');
+          
+          const toolArgs = { customer_id: state.customerId };
+          
+          // Extract question from query
+          const queryLower = (query || '').toLowerCase();
+          let question = query;
+          
+          // Clean up question - remove product name if it's in quotes
+          if (query.includes('"')) {
+            const quotedMatch = query.match(/"([^"]+)"/);
+            if (quotedMatch && quotedMatch[1]) {
+              question = query.replace(`"${quotedMatch[1]}"`, '').trim();
+              toolArgs.product_name = quotedMatch[1];
+            }
+          }
+          
+          // Use referenced product if available
+          if (state.referencedProduct) {
+            toolArgs.product_sku = state.referencedProduct.sku;
+            toolArgs.product_name = state.referencedProduct.title;
+            console.log(`🔧 Using referenced product: ${state.referencedProduct.sku} - ${state.referencedProduct.title}`);
+          } else if (state.context?.currentProduct) {
+            toolArgs.product_sku = state.context.currentProduct.sku;
+            toolArgs.product_name = state.context.currentProduct.title;
+            console.log(`🔧 Using current product from context: ${state.context.currentProduct.sku} - ${state.context.currentProduct.title}`);
+          } else if (state.detectedProductName) {
+            toolArgs.product_name = state.detectedProductName;
+            console.log(`🔧 Using detected product name: ${state.detectedProductName}`);
+          }
+          
+          // Determine attribute type based on question
+          let attribute_type = null;
+          if (queryLower.includes('review') || queryLower.includes('rating') || queryLower.includes('feedback')) {
+            attribute_type = 'review';
+          } else if (queryLower.includes('size') || queryLower.includes('dimension')) {
+            attribute_type = 'size';
+          } else if (queryLower.includes('color') || queryLower.includes('colour')) {
+            attribute_type = 'color';
+          } else if (queryLower.includes('material') || queryLower.includes('made of')) {
+            attribute_type = 'material';
+          } else if (queryLower.includes('feature') || queryLower.includes('specification')) {
+            attribute_type = 'feature';
+          } else if (queryLower.includes('price') || queryLower.includes('cost')) {
+            attribute_type = 'price';
+          }
+          
+          toolArgs.question = question;
+          toolArgs.attribute_type = attribute_type;
+          
+          if (toolArgs.product_name || toolArgs.product_sku) {
+            console.log(`🔧 Forcing answer_product_question with args:`, toolArgs);
+            try {
+              const result = await this.handleToolCall('answer_product_question', toolArgs);
+              if (result && result.success) {
+                state.productQAResult = result;
+                state.toolResponse = null; // Clear to ensure productQAResult is used
+                console.log(`✅ Product Q&A result stored: ${result.answer?.substring(0, 50) || 'N/A'}...`);
+              } else {
+                console.warn(`⚠️ answer_product_question returned success: false`, result);
+              }
+            } catch (error) {
+              console.error('❌ Error calling answer_product_question:', error);
+            }
+          }
+        }
+        
         // Force get_product_details for product_details intent
         if (state.currentIntent === 'product_details') {
           console.log('⚠️ No tool calls for product_details, forcing get_product_details execution');
@@ -3663,6 +3823,14 @@ Use this context to make responses more natural and context-aware. Reference pre
           else if (state.detectedProductName) {
             toolArgs.product_name = state.detectedProductName;
             console.log(`🔧 Using detected product name: ${state.detectedProductName}`);
+          }
+          // PRIORITY 3: Extract product name from query if it contains quotes
+          else if (query && query.includes('"')) {
+            const quotedMatch = query.match(/"([^"]+)"/);
+            if (quotedMatch && quotedMatch[1]) {
+              toolArgs.product_name = quotedMatch[1];
+              console.log(`🔧 Extracted product name from quotes: ${quotedMatch[1]}`);
+            }
           }
           // PRIORITY 3: Try to extract product name from query if not already detected
           else {
@@ -3781,13 +3949,52 @@ Use this context to make responses more natural and context-aware. Reference pre
                 };
                 console.log(`✅ Product details created from context: ${fallbackProduct.sku} - ${fallbackProduct.title}`);
               } else {
-                state.toolResponse = result.message || 'Product not found';
-                console.warn(`⚠️ Product details not found: ${result.message}`);
+                // Try fallback with any product in context (remove strict matching)
+                const fallbackProduct = state.referencedProduct || state.context?.currentProduct;
+                if (fallbackProduct) {
+                  console.log(`⚠️ Using any product from context as fallback: ${fallbackProduct.sku} - ${fallbackProduct.title}`);
+                  const price = typeof fallbackProduct.price === 'object' 
+                    ? fallbackProduct.price 
+                    : { amount: fallbackProduct.price || 0, currency: fallbackProduct.currency || 'AED' };
+                  
+                  state.productDetailsResult = {
+                    success: true,
+                    product: {
+                      ...fallbackProduct,
+                      price: price,
+                      comprehensiveDetails: fallbackProduct.description || `The ${fallbackProduct.title} is a beautiful piece from ${fallbackProduct.brand || 'our collection'}.`,
+                      attributes: fallbackProduct.attributes || {}
+                    }
+                  };
+                  state.toolResponse = null; // Clear to ensure productDetailsResult is used
+                  console.log(`✅ Product details created from context fallback: ${fallbackProduct.sku} - ${fallbackProduct.title}`);
+                } else {
+                  console.warn(`⚠️ Product details not found and no fallback available: ${result.message}`);
+                  // Don't set toolResponse here - let it be handled by answer_product_question if that was called
+                }
               }
             }
           } else {
             console.warn('⚠️ No product information available for get_product_details');
-            state.toolResponse = 'I couldn\'t identify which product you\'re asking about. Could you please specify the product name?';
+            // Try to use product from context even if we don't have toolArgs
+            const fallbackProduct = state.referencedProduct || state.context?.currentProduct;
+            if (fallbackProduct) {
+              console.log(`⚠️ No toolArgs but using product from context: ${fallbackProduct.sku} - ${fallbackProduct.title}`);
+              const price = typeof fallbackProduct.price === 'object' 
+                ? fallbackProduct.price 
+                : { amount: fallbackProduct.price || 0, currency: fallbackProduct.currency || 'AED' };
+              
+              state.productDetailsResult = {
+                success: true,
+                product: {
+                  ...fallbackProduct,
+                  price: price,
+                  comprehensiveDetails: fallbackProduct.description || `The ${fallbackProduct.title} is a beautiful piece from ${fallbackProduct.brand || 'our collection'}.`,
+                  attributes: fallbackProduct.attributes || {}
+                }
+              };
+              state.toolResponse = null;
+            }
           }
         }
         // Force cart tool execution for cart operations
@@ -3941,68 +4148,210 @@ Use this context to make responses more natural and context-aware. Reference pre
     console.log('[LangGraph] responseGenerationNode - query:', state.query);
     
     // Check structured results FIRST (before generic toolResponse)
-    if (state.productDetailsResult) {
+    // For product_details intent, productDetailsResult ALWAYS takes priority
+    if (state.productDetailsResult || (state.currentIntent === 'product_details' && state.productDetailsResult)) {
       // Handle enhanced product detail responses
-      console.log('[LangGraph] Generating enhanced product detail response...');
-      const detailsResult = state.productDetailsResult.product;
+      console.log('[LangGraph] Generating enhanced product detail response from productDetailsResult...');
+      const detailsResult = state.productDetailsResult?.product;
       
       if (!detailsResult) {
         console.warn('[LangGraph] productDetailsResult exists but product is missing');
-        // Fall through to toolResponse handling
-      } else {
-        let opening = `Here are the details for ${detailsResult.title}:\n\n`;
-        opening += `${detailsResult.comprehensiveDetails || detailsResult.detailedDescription || detailsResult.description || 'No description available'}\n\n`;
-        
-        // Add features if available
-        if (detailsResult.features && detailsResult.features.length > 0) {
-          opening += `✨ Features: ${detailsResult.features.join(', ')}\n\n`;
-        }
-        
-        // Add pros if available
-        if (detailsResult.pros && detailsResult.pros.length > 0) {
-          opening += `✨ Highlights: ${detailsResult.pros.join(', ')}\n\n`;
-        }
-        
-        // Add key attributes
-        if (detailsResult.attributes) {
-          const attrs = detailsResult.attributes;
-          const attrInfo = [];
-          if (attrs.size || attrs.dimensions) attrInfo.push(`Size: ${attrs.size || attrs.dimensions}`);
-          if (attrs.color) attrInfo.push(`Color: ${attrs.color}`);
-          if (attrs.material) attrInfo.push(`Material: ${attrs.material}`);
-          if (attrs.weight) attrInfo.push(`Weight: ${attrs.weight}`);
-          if (attrInfo.length > 0) {
-            opening += `📋 ${attrInfo.join(' • ')}\n\n`;
+        // Try to get product from context as fallback
+        const contextProduct = state.referencedProduct || state.context?.currentProduct;
+        if (contextProduct) {
+          console.log('[LangGraph] Using product from context as fallback');
+          // Create a minimal product details result
+          const price = typeof contextProduct.price === 'object' 
+            ? contextProduct.price 
+            : { amount: contextProduct.price || 0, currency: contextProduct.currency || 'AED' };
+          
+          state.productDetailsResult = {
+            success: true,
+            product: {
+              ...contextProduct,
+              price: price,
+              comprehensiveDetails: contextProduct.description || `The ${contextProduct.title} is a beautiful piece from ${contextProduct.brand || 'our collection'}.`,
+              attributes: contextProduct.attributes || {}
+            }
+          };
+          // Re-read detailsResult
+          const detailsResult = state.productDetailsResult.product;
+          
+          // Continue with response generation
+          const enthusiasm = conversationPersonality.getEnthusiasm();
+          let opening = `${enthusiasm} `;
+          opening += detailsResult.comprehensiveDetails || `The ${detailsResult.title} is a beautiful piece from ${detailsResult.brand || 'our collection'}.`;
+          
+          const priceStr = typeof detailsResult.price === 'object' 
+            ? `${detailsResult.price.amount} ${detailsResult.price.currency}` 
+            : `${detailsResult.price || 'N/A'} AED`;
+          
+          if (!opening.includes(priceStr) && !opening.includes('AED') && !opening.includes('₹')) {
+            opening += ` It's priced at ${priceStr}.`;
           }
+          
+          if (detailsResult.rating && detailsResult.rating >= 4.5) {
+            opening += ` It's highly rated (${detailsResult.rating}/5).`;
+          }
+          
+          const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+            lastCategory: state.context?.lastCategory,
+            previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+            currentProducts: [detailsResult]
+          });
+          
+          state.response = {
+            opening: opening.trim(),
+            items: [],
+            cta: followUpQuestion,
+            quick_replies: ["Add to cart", "Show variants", "Compare with similar"]
+          };
+          console.log('[LangGraph] Enhanced product detail response generated from context');
+          return state;
+        } else {
+          // Fall through to toolResponse handling
+          console.warn('[LangGraph] No product found in productDetailsResult or context');
+        }
+      } else {
+        // Keep it SHORT and conversational - like a human salesperson
+        const enthusiasm = conversationPersonality.getEnthusiasm();
+        let opening = `${enthusiasm} `;
+        
+        // Use concise details - truncate if too long (max 200 chars)
+        const productDetails = detailsResult.comprehensiveDetails || detailsResult.detailedDescription || detailsResult.description || '';
+        
+        if (productDetails.length > 200) {
+          // Find natural break point (sentence end)
+          const truncated = productDetails.substring(0, 200);
+          const lastPeriod = truncated.lastIndexOf('.');
+          const lastQuestion = truncated.lastIndexOf('?');
+          const lastExclamation = truncated.lastIndexOf('!');
+          const breakPoint = Math.max(lastPeriod, lastQuestion, lastExclamation);
+          opening += breakPoint > 100 ? productDetails.substring(0, breakPoint + 1) : truncated;
+        } else {
+          opening += productDetails || `The ${detailsResult.title} is a beautiful piece from ${detailsResult.brand || 'our collection'}.`;
         }
         
+        // Add price naturally if not already mentioned
         const price = typeof detailsResult.price === 'object' 
           ? `${detailsResult.price.amount} ${detailsResult.price.currency}` 
           : `${detailsResult.price || 'N/A'} AED`;
-        opening += `💰 Price: ${price}\n`;
-        if (detailsResult.rating) {
-          opening += `⭐ Rating: ${detailsResult.rating}/5`;
-          if (detailsResult.reviews) {
-            opening += ` (${detailsResult.reviews} reviews)`;
-          }
-          opening += `\n`;
+        
+        if (!opening.includes(price) && !opening.includes('AED') && !opening.includes('₹')) {
+          opening += ` It's priced at ${price}.`;
         }
         
-        // Add use cases if available
-        if (detailsResult.useCases && detailsResult.useCases.length > 0) {
-          opening += `\n💼 Perfect for: ${detailsResult.useCases.join(', ')}\n`;
+        // Add rating only if it's really good (4.5+)
+        if (detailsResult.rating && detailsResult.rating >= 4.5) {
+          opening += ` It's highly rated (${detailsResult.rating}/5).`;
         }
+        
+        // Get follow-up question
+        const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+          lastCategory: state.context?.lastCategory,
+          previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+          currentProducts: [detailsResult]
+        });
         
         state.response = {
           opening: opening.trim(),
           items: [],
-          cta: detailsResult.careInstructions 
-            ? `${detailsResult.careInstructions}\n\nWould you like to know more about this product, see variants, or add it to your wishlist?`
-            : "Would you like to know more about this product, see variants, or add it to your wishlist?",
+          cta: followUpQuestion,
           quick_replies: ["Add to cart", "Show variants", "Compare with similar"]
         };
         console.log('[LangGraph] Enhanced product detail response generated');
         return state; // Exit early - response is set
+      }
+    }
+    
+    // For product_details intent, if we still don't have productDetailsResult but have product in context, create it
+    if (state.currentIntent === 'product_details' && !state.productDetailsResult) {
+      const contextProduct = state.referencedProduct || state.context?.currentProduct;
+      if (contextProduct) {
+        console.log('[LangGraph] product_details intent: Creating productDetailsResult from context product');
+        const price = typeof contextProduct.price === 'object' 
+          ? contextProduct.price 
+          : { amount: contextProduct.price || 0, currency: contextProduct.currency || 'AED' };
+        
+        // Generate concise details
+        let comprehensiveDetails = contextProduct.description || `The ${contextProduct.title} is a beautiful piece from ${contextProduct.brand || 'our collection'}.`;
+        
+        // Try to enhance with LLM if we have enough info
+        if (contextProduct.description && contextProduct.description.length > 30) {
+          try {
+            const detailsResponse = await llmProvider.chatCompletion([
+              {
+                role: 'system',
+                content: conversationPersonality.getSystemPrompt() + `\n\nGenerate a SHORT, CONVERSATIONAL product description (2-3 sentences max).`
+              },
+              {
+                role: 'user',
+                content: `Product: ${contextProduct.title} by ${contextProduct.brand}\nPrice: ${price.amount} ${price.currency}\nDescription: ${contextProduct.description}\n\nGenerate a brief, enthusiastic description.`
+              }
+            ], {
+              model: 'versatile',
+              temperature: 0.6
+            });
+            comprehensiveDetails = detailsResponse.choices[0].message.content;
+          } catch (error) {
+            console.warn('Could not generate enhanced details, using description');
+          }
+        }
+        
+        state.productDetailsResult = {
+          success: true,
+          product: {
+            ...contextProduct,
+            price: price,
+            comprehensiveDetails: comprehensiveDetails,
+            attributes: contextProduct.attributes || {},
+            rating: contextProduct.rating || null
+          }
+        };
+        state.toolResponse = null; // Clear to ensure productDetailsResult is used
+        
+        // Now generate response from productDetailsResult
+        const detailsResult = state.productDetailsResult.product;
+        const enthusiasm = conversationPersonality.getEnthusiasm();
+        let opening = `${enthusiasm} `;
+        
+        if (comprehensiveDetails.length > 200) {
+          const truncated = comprehensiveDetails.substring(0, 200);
+          const lastPeriod = truncated.lastIndexOf('.');
+          const lastQuestion = truncated.lastIndexOf('?');
+          const lastExclamation = truncated.lastIndexOf('!');
+          const breakPoint = Math.max(lastPeriod, lastQuestion, lastExclamation);
+          opening += breakPoint > 100 ? comprehensiveDetails.substring(0, breakPoint + 1) : truncated;
+        } else {
+          opening += comprehensiveDetails;
+        }
+        
+        const priceStr = typeof detailsResult.price === 'object' 
+          ? `${detailsResult.price.amount} ${detailsResult.price.currency}` 
+          : `${detailsResult.price || 'N/A'} AED`;
+        
+        if (!opening.includes(priceStr) && !opening.includes('AED') && !opening.includes('₹')) {
+          opening += ` It's priced at ${priceStr}.`;
+        }
+        
+        if (detailsResult.rating && detailsResult.rating >= 4.5) {
+          opening += ` It's highly rated (${detailsResult.rating}/5).`;
+        }
+        
+        const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+          lastCategory: state.context?.lastCategory,
+          previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+          currentProducts: [detailsResult]
+        });
+        
+        state.response = {
+          opening: opening.trim(),
+          items: [],
+          cta: followUpQuestion,
+          quick_replies: ["Add to cart", "Show variants", "Compare with similar"]
+        };
+        console.log('[LangGraph] Product detail response generated from context product');
+        return state; // Exit early
       }
     }
     
@@ -4069,16 +4418,11 @@ Use this context to make responses more natural and context-aware. Reference pre
         const greetingResponse = await llmProvider.chatCompletion([
         {
           role: 'system',
-          content: `You are a friendly, luxury shopping assistant for a high-end boutique in Dubai. 
-            When the user greets you, respond naturally and warmly. Match the tone of their greeting:
-            - If they just say "hi" or "hello", greet them back enthusiastically and offer help
-            - If they ask "how are you", respond naturally about how you're doing, then pivot to offering help
-            - Keep responses warm, personal, and engaging
-            - Always end by asking what they'd like to explore or offering to help them find products
-            - DO NOT use trailing ellipsis (...) - keep responses complete and natural
-            - Sound human and conversational, not robotic
-            
-            Return your response as a natural greeting that acknowledges what they said. Keep it conversational and friendly (2-3 sentences max).`
+          content: conversationPersonality.getGreetingPrompt(state.query || 'Hello', {
+            customerName: state.customerName || state.context?.customerName,
+            previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+            conversationHistory: state.context?.conversationHistory || []
+          })
           },
           {
             role: 'user',
@@ -4126,11 +4470,41 @@ Use this context to make responses more natural and context-aware. Reference pre
         // Handle product Q&A responses
         console.log('[LangGraph] Generating product Q&A response...');
         const qaResult = state.productQAResult;
+        
+        // For reviews, make the response more conversational and detailed
+        let opening = '';
+        if (qaResult.attribute_type === 'review' || (qaResult.question && qaResult.question.toLowerCase().includes('review'))) {
+          // Generate a more detailed review response
+          const enthusiasm = conversationPersonality.getEnthusiasm();
+          opening = `${enthusiasm} `;
+          
+          // If we have rating info, include it
+          if (qaResult.product) {
+            // Try to get product details for rating
+            const productDetails = state.referencedProduct || state.context?.currentProduct;
+            if (productDetails && productDetails.rating) {
+              opening += `The ${qaResult.product.title} has an excellent rating of ${productDetails.rating}/5. `;
+            }
+          }
+          
+          // Use the answer from the tool
+          opening += qaResult.answer || `The ${qaResult.product?.title || 'product'} has received great feedback from customers. It's known for its quality craftsmanship and timeless design.`;
+        } else {
+          // For other questions, use a more direct format
+          opening = qaResult.answer || `Based on the product information: ${qaResult.product?.title || 'this product'}`;
+        }
+        
+        const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+          lastCategory: state.context?.lastCategory,
+          previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+          currentProducts: qaResult.product ? [qaResult.product] : []
+        });
+        
         state.response = {
-          opening: `${qaResult.product.title}: ${qaResult.answer}`,
+          opening: opening.trim(),
           items: [],
-          cta: "Would you like to know more about this product or explore other options?",
-          quick_replies: ["Tell me more", "Show similar products", "Add to wishlist"]
+          cta: followUpQuestion,
+          quick_replies: ["Tell me more", "Show similar products", "Add to cart"]
         };
         console.log('[LangGraph] Product Q&A response generated');
       } else if (state.recommendationResult) {
@@ -4241,38 +4615,50 @@ Use this context to make responses more natural and context-aware. Reference pre
         const detailsResult = state.productDetailsResult.product;
         
         if (detailsResult) {
-          let opening = `Here are the details for ${detailsResult.title}:\n\n`;
-          opening += `${detailsResult.comprehensiveDetails || detailsResult.detailedDescription || detailsResult.description}\n\n`;
+          // Keep it short and conversational - like the example
+          const enthusiasm = conversationPersonality.getEnthusiasm();
+          let opening = `${enthusiasm} `;
           
-          // Add pros if available
-          if (detailsResult.pros && detailsResult.pros.length > 0) {
-            opening += `✨ Highlights: ${detailsResult.pros.join(', ')}\n\n`;
+          // Use concise details - truncate if too long
+          const productDetails = detailsResult.comprehensiveDetails || detailsResult.detailedDescription || detailsResult.description || '';
+          if (productDetails.length > 200) {
+            // Find natural break point
+            const truncated = productDetails.substring(0, 200);
+            const lastPeriod = truncated.lastIndexOf('.');
+            const lastQuestion = truncated.lastIndexOf('?');
+            const lastExclamation = truncated.lastIndexOf('!');
+            const breakPoint = Math.max(lastPeriod, lastQuestion, lastExclamation);
+            opening += breakPoint > 100 ? productDetails.substring(0, breakPoint + 1) : truncated;
+          } else {
+            opening += productDetails || `The ${detailsResult.title} is a beautiful piece from ${detailsResult.brand || 'our collection'}.`;
           }
           
-          // Add key attributes
-          if (detailsResult.attributes) {
-            const attrs = detailsResult.attributes;
-            const attrInfo = [];
-            if (attrs.size) attrInfo.push(`Size: ${attrs.size}`);
-            if (attrs.color) attrInfo.push(`Color: ${attrs.color}`);
-            if (attrs.material) attrInfo.push(`Material: ${attrs.material}`);
-            if (attrInfo.length > 0) {
-              opening += `📋 ${attrInfo.join(' • ')}\n\n`;
-            }
-          }
-          
+          // Only add key info if it's really important - keep it minimal
           const price = typeof detailsResult.price === 'object' ? `${detailsResult.price.amount} ${detailsResult.price.currency}` : `${detailsResult.price} AED`;
-          opening += `💰 Price: ${price}\n`;
-          if (detailsResult.rating) {
-            opening += `⭐ Rating: ${detailsResult.rating}/5\n`;
+          
+          // Add price naturally in the text if not already mentioned
+          if (!opening.includes(price) && !opening.includes('AED')) {
+            opening += ` It's priced at ${price}.`;
           }
+          
+          // Add rating only if it's really good (4.5+)
+          if (detailsResult.rating && detailsResult.rating >= 4.5) {
+            opening += ` It's highly rated (${detailsResult.rating}/5).`;
+          }
+          
+          // Get follow-up question
+          const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+            lastCategory: state.context?.lastCategory,
+            previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+            currentProducts: [detailsResult]
+          });
           
           state.response = {
             opening: opening.trim(),
             items: [],
             cta: detailsResult.careInstructions 
-              ? `${detailsResult.careInstructions}\n\nWould you like to know more about this product, see variants, or add it to your wishlist?`
-              : "Would you like to know more about this product, see variants, or add it to your wishlist?",
+              ? `${detailsResult.careInstructions}\n\n${followUpQuestion}`
+              : followUpQuestion,
             quick_replies: ["Show variants", "Add to wishlist", "Compare with similar"]
           };
           console.log('[LangGraph] Enhanced product detail response generated (fallback)');
@@ -4295,20 +4681,25 @@ Use this context to make responses more natural and context-aware. Reference pre
             opening = cartOp.message || "I wasn't able to complete that request. Could you try again or let me know what you'd like to do?";
           }
         } else if (cartOp.message && cartOp.message.includes('Added')) {
-          // Successfully added to cart
+          // Successfully added to cart - be enthusiastic!
           const itemName = cartOp.item?.title || cartOp.item?.product_name || 'item';
-          opening = `Perfect! I've added ${itemName} to your cart. `;
+          const enthusiasm = conversationPersonality.getEnthusiasm();
+          opening = `${enthusiasm} I've added ${itemName} to your cart! `;
           if (cart.items && cart.items.length > 1) {
-            opening += `You now have ${cart.items.length} items in your cart.`;
+            opening += `You now have ${cart.items.length} beautiful pieces in your cart. `;
           }
+          opening += `What would you like to do next?`;
         } else if (cartOp.message && cartOp.message.includes('removed')) {
-          opening = `Done! I've removed ${cartOp.removed_item?.title || cartOp.removed_item?.product_name || 'the item'} from your cart.`;
+          const itemName = cartOp.removed_item?.title || cartOp.removed_item?.product_name || 'that item';
+          opening = `No problem! I've removed ${itemName} from your cart. `;
+          opening += `Is there anything else you'd like to explore?`;
         } else if (cartOp.message && cartOp.message.includes('updated')) {
           const itemName = cartOp.item?.title || cartOp.item?.product_name || 'item';
-          opening = `Great! I've updated the quantity of ${itemName} in your cart.`;
+          opening = `Perfect! I've updated the quantity of ${itemName} in your cart. `;
+          opening += `Anything else you'd like to adjust?`;
         } else if (cart && cart.items && cart.items.length > 0) {
-          // Cart view with items - show actual cart contents
-          opening = `Here's what's in your cart:\n\n`;
+          // Cart view with items - show actual cart contents in a friendly way
+          opening = `Here's what you have in your cart:\n\n`;
           cart.items.forEach((item, index) => {
             const price = typeof item.price === 'object' 
               ? `${item.price.amount} ${item.price.currency}` 
@@ -4322,18 +4713,27 @@ Use this context to make responses more natural and context-aware. Reference pre
             return sum + (itemPrice * (item.quantity || 1));
           }, 0);
           
-          opening += `\nTotal: ${total.toFixed(2)} ${cart.currency || 'AED'}`;
+          opening += `\nTotal: ${total.toFixed(2)} ${cart.currency || 'AED'}\n\n`;
+          opening += `You've picked some great pieces! What would you like to do next?`;
         } else {
-          // Empty cart
-          opening = `Your cart is currently empty. Would you like to start shopping? I'd be happy to help you find something that suits your taste!`;
+          // Empty cart - be encouraging
+          opening = `Your cart is empty right now, but I'm here to help you find something amazing! `;
+          opening += `What are you in the mood for today?`;
         }
+        
+        // Get follow-up question based on context
+        const followUpQuestion = conversationPersonality.getFollowUpQuestion({
+          lastCategory: state.context?.lastCategory,
+          previousInterests: state.context?.lastCategory ? [state.context.lastCategory] : [],
+          currentProducts: []
+        });
         
         state.response = {
           opening: opening.trim(),
           items: [],
           cta: cart.items && cart.items.length > 0 
-            ? "Would you like to checkout, add more items, or continue browsing?"
-            : "What kind of products are you interested in today?",
+            ? followUpQuestion
+            : "I'd love to help you find something special. What catches your eye?",
           quick_replies: cart.items && cart.items.length > 0
             ? ["Checkout", "Continue shopping", "View cart"]
             : ["Show me handbags", "Browse watches", "Explore jewelry"]
@@ -4694,10 +5094,22 @@ Use this context to make responses more natural and context-aware. Reference pre
     let cartData = null;
     if (state.cartResult && state.cartResult.cart) {
       cartData = state.cartResult.cart;
-    } else if (state.customerId) {
-      // Try to fetch cart if not in result but we have customer ID
-      // (async operations can't be done here, so this is a fallback)
-      // The cart should already be in cartResult from tool execution
+      console.log('[LangGraph] formatResponse - cart from cartResult:', {
+        hasCart: !!cartData,
+        itemsCount: cartData?.items?.length || 0,
+        customerId: state.customerId
+      });
+    } else if (state.customerId && (state.currentIntent === 'cart_operation' || state.currentIntent === 'order_history')) {
+      // For cart operations, try to fetch cart if not in result
+      // This is a fallback in case cartResult.cart is missing
+      console.log('[LangGraph] formatResponse - cart missing from cartResult, attempting to fetch...');
+      try {
+        // Note: This is async but we can't await here in formatResponse
+        // The cart should already be in cartResult from tool execution
+        // This is just a safety check
+      } catch (error) {
+        console.warn('[LangGraph] Could not fetch cart in formatResponse:', error.message);
+      }
     }
     
     if (state.response && typeof state.response === 'object' && state.response.opening) {
@@ -4714,9 +5126,27 @@ Use this context to make responses more natural and context-aware. Reference pre
         metadata.cart = cartData;
       }
       
+      // Ensure cart is in state for widget generation (if not already in cartResult)
+      // This is a fallback to ensure widgets can access cart data
+      if (cartData && (!state.cartResult || !state.cartResult.cart)) {
+        state.cartResult = state.cartResult || {};
+        state.cartResult.cart = cartData;
+        console.log('[LangGraph] formatResponse - Added cart to state.cartResult for widget generation');
+      }
+      
       // Generate widgets based on state
       const widgets = widgetService.generateWidgets(state);
       console.log(`📦 Generated ${widgets.length} widgets:`, widgets.map(w => w.type).join(', '));
+      
+      // If cart operation happened but no widget was generated, force generate one
+      if (state.currentIntent === 'cart_operation' && widgets.length === 0 && cartData) {
+        console.log('[LangGraph] formatResponse - Forcing cart widget generation for cart operation');
+        const cartWidget = widgetService.generateCartWidget(cartData);
+        if (cartWidget) {
+          widgets.push(cartWidget);
+          console.log(`📦 Added cart widget: ${cartWidget.type}`);
+        }
+      }
       
       return {
         success: true,

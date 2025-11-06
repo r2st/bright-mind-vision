@@ -402,7 +402,15 @@ export function ProductDetailsWidget({ data }) {
         {data.actions && data.actions.length > 0 && (
           <div className={styles.widgetActions}>
             {data.actions.map((action, index) => (
-              <button key={index} className={styles.widgetButton}>
+              <button 
+                key={index} 
+                className={styles.widgetButton}
+                onClick={() => {
+                  if (data.onActionClick) {
+                    data.onActionClick(action, data);
+                  }
+                }}
+              >
                 {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </button>
             ))}

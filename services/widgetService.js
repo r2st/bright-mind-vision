@@ -451,27 +451,49 @@ class WidgetService {
   generateWidgets(state) {
     const widgets = [];
 
-    // Cart widget
+    // Cart widget - check multiple sources
+    let cartData = null;
+    
+    // Priority 1: Check cartResult (from tool execution)
     if (state.cartResult && state.cartResult.cart) {
+      cartData = state.cartResult.cart;
       console.log('[WidgetService] Generating cart widget from cartResult:', {
-        hasCart: !!state.cartResult.cart,
-        itemsCount: state.cartResult.cart.items?.length || 0
+        hasCart: !!cartData,
+        itemsCount: cartData.items?.length || 0
       });
-      const cartWidget = this.generateCartWidget(state.cartResult.cart);
-      if (cartWidget) widgets.push(cartWidget);
-    } else if (state.currentIntent === 'cart_operation' || state.currentIntent === 'order_history') {
-      // If intent is cart-related but cartResult is missing, generate empty cart widget
-      // This handles cases where the cart query was detected but cartResult wasn't set
+    }
+    // Priority 2: Check if cart is in metadata (from API response)
+    else if (state.metadata && state.metadata.cart) {
+      cartData = state.metadata.cart;
+      console.log('[WidgetService] Generating cart widget from metadata:', {
+        hasCart: !!cartData,
+        itemsCount: cartData.items?.length || 0
+      });
+    }
+    // Priority 3: For cart operations, always generate a widget (even if empty)
+    else if (state.currentIntent === 'cart_operation') {
       const query = (state.query || '').toLowerCase();
-      const cartKeywords = ['cart', 'basket', 'bag'];
-      const cartActionKeywords = ['show', 'view', 'see', 'display', 'my'];
-      const hasCartKeyword = cartKeywords.some(kw => query.includes(kw));
-      const hasCartAction = cartActionKeywords.some(kw => query.includes(kw));
+      const isCartQuery = query.includes('cart') || query.includes('basket') || 
+                         query.includes('add') || query.includes('remove') || 
+                         query.includes('update') || query.includes('show') ||
+                         query.includes('view') || query.includes('my');
       
-      if (hasCartKeyword && hasCartAction) {
-        console.log('[WidgetService] Generating empty cart widget for cart query without cartResult');
-        const emptyCartWidget = this.generateCartWidget({ items: [], total: 0, currency: 'AED' });
-        if (emptyCartWidget) widgets.push(emptyCartWidget);
+      if (isCartQuery) {
+        console.log('[WidgetService] Cart operation detected but no cart data, generating empty cart widget');
+        cartData = { items: [], total: 0, currency: 'AED' };
+      }
+    }
+    
+    // Generate cart widget if we have cart data
+    if (cartData !== null) {
+      const cartWidget = this.generateCartWidget(cartData);
+      if (cartWidget) {
+        widgets.push(cartWidget);
+        console.log('[WidgetService] Cart widget generated:', {
+          type: cartWidget.type,
+          empty: cartWidget.data.empty,
+          itemsCount: cartWidget.data.items?.length || 0
+        });
       }
     }
 

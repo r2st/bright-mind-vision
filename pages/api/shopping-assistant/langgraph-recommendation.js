@@ -159,17 +159,35 @@ async function handleRequest(req, res) {
       cart: result.metadata?.cart || null
     };
     
-    // If cart operations happened, try to fetch current cart
-    if (customer && (message?.toLowerCase().includes('cart') || 
-                     message?.toLowerCase().includes('checkout') ||
-                     quickReply === 3)) {
+    // Always fetch and include cart in metadata if we have a customer ID
+    // This ensures the cart widget always shows the latest cart state
+    if (customer) {
       try {
-        const currentCart = await memoryService.getCart(customer);
-        if (currentCart && currentCart.items && currentCart.items.length > 0) {
-          result.metadata.cart = currentCart;
+        // Check if result already has cart in metadata (from cart operations)
+        const hasCartInMetadata = result.metadata?.cart && result.metadata.cart.items && result.metadata.cart.items.length > 0;
+        
+        // If no cart in metadata, or if this was a cart operation, fetch fresh cart
+        if (!hasCartInMetadata || 
+            result.metadata?.intent === 'cart_operation' ||
+            message?.toLowerCase().includes('cart') || 
+            message?.toLowerCase().includes('add') ||
+            message?.toLowerCase().includes('remove') ||
+            message?.toLowerCase().includes('checkout')) {
+          
+          const currentCart = await memoryService.getCart(customer);
+          if (currentCart) {
+            // Always update metadata with fresh cart
+            result.metadata = result.metadata || {};
+            result.metadata.cart = currentCart;
+            console.log('📦 Fetched and included cart in metadata:', {
+              itemsCount: currentCart.items?.length || 0,
+              customerId: customer
+            });
+          }
         }
       } catch (error) {
-        console.warn('Could not fetch cart for metadata:', error.message);
+        console.warn('⚠️ Could not fetch cart for metadata:', error.message);
+        // Don't fail the request if cart fetch fails
       }
     }
 

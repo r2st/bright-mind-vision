@@ -9,14 +9,31 @@ const EcommerceChatBot = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  // Get or create persistent customer ID from sessionStorage
+  // Get or create persistent customer ID from sessionStorage (with localStorage fallback for persistence)
   const getPersistentCustomerId = () => {
     if (typeof window !== 'undefined') {
+      // Try sessionStorage first (session-specific)
       let customerId = sessionStorage.getItem('shopping_assistant_customer_id');
+      
+      // If not in sessionStorage, try localStorage (persists across sessions)
+      if (!customerId) {
+        customerId = localStorage.getItem('shopping_assistant_customer_id');
+      }
+      
+      // If still not found, create new one
       if (!customerId) {
         customerId = `web-${Date.now()}`;
+        // Store in both for redundancy
         sessionStorage.setItem('shopping_assistant_customer_id', customerId);
+        localStorage.setItem('shopping_assistant_customer_id', customerId);
+        console.log('🆕 Generated new customer ID:', customerId);
+      } else {
+        // Ensure it's in both storages for consistency
+        sessionStorage.setItem('shopping_assistant_customer_id', customerId);
+        localStorage.setItem('shopping_assistant_customer_id', customerId);
+        console.log('✅ Using existing customer ID:', customerId);
       }
+      
       return customerId;
     }
     return `web-${Date.now()}`;
@@ -534,6 +551,17 @@ const EcommerceChatBot = () => {
         widgets: data.widgets || []
       };
 
+      // Debug: Log widget and cart data
+      if (data.widgets && data.widgets.length > 0) {
+        console.log('📦 Widgets received:', data.widgets.map(w => ({ type: w.type, hasData: !!w.data })));
+      }
+      if (data.metadata?.cart) {
+        console.log('🛒 Cart in metadata:', {
+          itemsCount: data.metadata.cart.items?.length || 0,
+          hasItems: !!(data.metadata.cart.items && data.metadata.cart.items.length > 0)
+        });
+      }
+
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       // Comprehensive error logging for debugging - print all details
@@ -770,9 +798,53 @@ const EcommerceChatBot = () => {
                       {/* Widgets */}
                       {message.widgets && message.widgets.length > 0 && (
                         <div className={styles.widgetsContainer}>
-                          {message.widgets.map((widget, idx) => (
-                            <ChatWidget key={idx} widget={widget} />
-                          ))}
+                          {message.widgets.map((widget, idx) => {
+                            // Add action handler for product details widget
+                            if (widget.type === 'product_details' && widget.data) {
+                              const enhancedWidget = {
+                                ...widget,
+                                data: {
+                                  ...widget.data,
+                                  onActionClick: async (action, productData) => {
+                                    if (action === 'add_to_cart') {
+                                      const message = productData.sku 
+                                        ? `add ${productData.sku} to cart`
+                                        : `add ${productData.title} to cart`;
+                                      await sendMessage(null, message);
+                                      setTimeout(() => {
+                                        fetchCart(getCustomerId());
+                                      }, 1500);
+                                    } else if (action === 'add_to_wishlist') {
+                                      await sendMessage(null, `add ${productData.sku || productData.title} to wishlist`);
+                                    } else if (action === 'compare') {
+                                      await sendMessage(null, `compare ${productData.sku || productData.title}`);
+                                    } else if (action === 'share') {
+                                      // Share functionality - could open share dialog or copy link
+                                      if (navigator.share) {
+                                        try {
+                                          await navigator.share({
+                                            title: productData.title,
+                                            text: `Check out ${productData.title} from ${productData.brand}`,
+                                            url: window.location.href
+                                          });
+                                        } catch (err) {
+                                          console.log('Share cancelled');
+                                        }
+                                      } else {
+                                        // Fallback: copy to clipboard
+                                        const shareText = `${productData.title} - ${productData.brand}\n${window.location.href}`;
+                                        navigator.clipboard.writeText(shareText).then(() => {
+                                          alert('Product link copied to clipboard!');
+                                        });
+                                      }
+                                    }
+                                  }
+                                }
+                              };
+                              return <ChatWidget key={idx} widget={enhancedWidget} />;
+                            }
+                            return <ChatWidget key={idx} widget={widget} />;
+                          })}
                         </div>
                       )}
 

@@ -782,44 +782,17 @@ class EnhancedRAGService {
         contextNotes += `\n\nRECENT CONVERSATION:\n${recentContext}\n\nUse this context to make your response more natural and context-aware. Reference previous interactions when relevant, but keep it subtle and human-like.`;
       }
 
+      // Import conversation personality for better prompts
+      const { conversationPersonality } = await import('./conversationPersonality.js');
+      
       const response = await llmProvider.chatCompletion([
         {
           role: 'system',
-          content: `You are a luxury shopping assistant for a high-end boutique in Dubai.
-          Generate a natural, engaging, and context-aware response that:
-          1. ACKNOWLEDGES the user's specific query in the opening message (e.g., if they asked for "bags", say "Here are some bags for you:" or "I've found some beautiful bags:")
-          2. Uses natural, conversational language that reflects what the user asked for
-          3. References previous conversation context when relevant (e.g., "As you were interested in..." or "Building on our earlier conversation...")
-          4. Uses the customer's name${nameGreeting ? ` (${customerName})` : ''} naturally when appropriate, but don't overuse it
-          5. Presents the recommended products in an appealing way
-          6. Uses the EXACT prices provided in the product data (already formatted as "amount AED")
-          7. Provides context-appropriate quick replies
-          8. Maintains a luxury, personalized, and friendly tone
-          9. Sounds like a real human conversation - references previous interactions naturally
-          
-          IMPORTANT RULES FOR OPENING MESSAGE:
-          - CRITICAL: The opening message MUST match the user's query. If they ask for "skincare", the opening MUST mention skincare, not watches or bags
-          - If the user asks for "bags" or "handbags", say something like "Here are some beautiful bags for you:" or "I've curated some luxury handbags for you:"
-          - If they ask for "watches", say "Here are some exquisite watches:" or "I found some stunning timepieces for you:"
-          - If they ask for "skincare" or "skin care", say "Here are some premium skincare products:" or "I've selected some luxury skincare items for you:"
-          - Match the user's language and tone - be natural and conversational
-          - Reference previous interests naturally when switching categories (e.g., "I see you're also interested in..." or "While you were looking at watches earlier...")
-          - Never use generic phrases like "Here are some luxury products I found for you:" when the user was specific
-          - NEVER use an opening about a different product category than what the user asked for (e.g., don't say "watches" if they asked for "skincare")
-          - Double-check that your opening message matches the category of products you're showing
-          - DO NOT use trailing ellipsis (...) - keep responses complete and natural, like a human would write
-          - Sound human and conversational - avoid robotic phrases like "Let me find..." or "Discovering..." at the start
-          - If context shows previous interests, subtly acknowledge them (e.g., "I see you're exploring different categories today" or "Building on your interest in luxury items...")
-          
-          Format your response as JSON with:
-          - opening: Natural, context-aware welcome message that reflects the user's query and optionally references previous context
-          - items: Array of product recommendations
-          - cta: Call to action
-          - quick_replies: Array of 3 quick reply options
-          
-          Each item should have: headline, price (use the exact price from product data), one_liner, image (emoji)
-          IMPORTANT: Use the exact price format provided in the product data. Do not modify or reformat prices.
-          For one_liner: Provide a descriptive, engaging product description (up to 200 characters). Include key features and benefits to help customers make informed decisions.`
+          content: conversationPersonality.getProductRecommendationPrompt(query, productList, {
+            customerName: nameGreeting ? customerName : null,
+            previousInterests: context?.lastCategory ? [context.lastCategory] : [],
+            conversationHistory: context?.conversationHistory || []
+          })
         },
         {
           role: 'user',

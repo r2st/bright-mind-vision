@@ -183,25 +183,56 @@ class TursoOrderService {
   // Cart Management
   async getCart(customerId) {
     if (!this.isAvailable()) {
+      console.warn('⚠️ Turso not available for cart retrieval');
       return null; // Will fallback to local SQLite
     }
 
+    if (!customerId) {
+      console.error('❌ Customer ID is required for cart retrieval');
+      return { items: [], total: 0, currency: 'AED' };
+    }
+
     try {
+      console.log(`🛒 Fetching cart from Turso for customer: ${customerId}`);
+      
       const result = await this.client.execute({
         sql: `SELECT * FROM carts WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 1`,
         args: [customerId]
       });
 
+      console.log(`🛒 Turso query result:`, {
+        rowsFound: result.rows.length,
+        customerId: customerId
+      });
+
       if (result.rows.length === 0) {
+        console.log(`🛒 No cart found for customer: ${customerId}`);
         return { items: [], total: 0, currency: 'AED' };
       }
 
       const row = result.rows[0];
-      const items = JSON.parse(row.items || '[]');
+      const itemsJson = row.items || '[]';
+      let items = [];
+      
+      try {
+        items = JSON.parse(itemsJson);
+      } catch (parseError) {
+        console.error('❌ Error parsing cart items JSON:', parseError);
+        console.error('❌ Raw items data:', itemsJson);
+        return { items: [], total: 0, currency: 'AED' };
+      }
+      
       const total = items.reduce((sum, item) => {
         const price = typeof item.price === 'object' ? item.price.amount : item.price;
-        return sum + (price * item.quantity);
+        return sum + (price * (item.quantity || 1));
       }, 0);
+
+      console.log(`✅ Cart retrieved from Turso:`, {
+        cartId: row.cart_id,
+        itemsCount: items.length,
+        total: total,
+        customerId: customerId
+      });
 
       return {
         cart_id: row.cart_id,
@@ -212,20 +243,44 @@ class TursoOrderService {
         updated_at: row.updated_at
       };
     } catch (error) {
-      console.error('Error getting cart from Turso:', error);
+      console.error('❌ Error getting cart from Turso:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        customerId: customerId
+      });
       return null;
     }
   }
 
   async updateCart(customerId, items) {
     if (!this.isAvailable()) {
+      console.warn('⚠️ Turso not available for cart update');
+      return null;
+    }
+
+    if (!customerId) {
+      console.error('❌ Customer ID is required for cart update');
       return null;
     }
 
     try {
+      console.log(`🛒 Updating cart in Turso for customer: ${customerId}`, {
+        itemsCount: items.length,
+        items: items.map(item => ({ sku: item.sku, title: item.title, quantity: item.quantity }))
+      });
+      
       const existingCart = await this.getCart(customerId);
       const cartId = existingCart.cart_id || `cart_${customerId}_${Date.now()}`;
       const now = new Date().toISOString();
+
+      const itemsJson = JSON.stringify(items);
+      console.log(`🛒 Cart update payload:`, {
+        cartId,
+        customerId,
+        itemsJsonLength: itemsJson.length,
+        itemsCount: items.length
+      });
 
       await this.client.execute({
         sql: `
@@ -239,10 +294,20 @@ class TursoOrderService {
         args: [
           cartId,
           customerId,
-          JSON.stringify(items),
+          itemsJson,
           existingCart.created_at || now,
           now
         ]
+      });
+
+      console.log(`✅ Cart updated in Turso: ${cartId}`);
+
+      // Verify the update by fetching the cart back
+      const verifyCart = await this.getCart(customerId);
+      console.log(`🔍 Cart verification after update:`, {
+        cartId: verifyCart?.cart_id,
+        itemsCount: verifyCart?.items?.length || 0,
+        matches: verifyCart?.items?.length === items.length
       });
 
       // Generate and store embedding for semantic search
@@ -250,7 +315,13 @@ class TursoOrderService {
 
       return { cart_id: cartId, items, updated_at: now };
     } catch (error) {
-      console.error('Error updating cart in Turso:', error);
+      console.error('❌ Error updating cart in Turso:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        customerId: customerId,
+        itemsCount: items.length
+      });
       return null;
     }
   }
