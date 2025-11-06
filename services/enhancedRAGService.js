@@ -26,10 +26,22 @@ class EnhancedRAGService {
           return products;
         } else {
           console.warn(`⚠️ RAG Service: Turso returned ${products?.length || 0} products, trying fallback...`);
+          console.warn(`⚠️ Turso connection status:`, {
+            isAvailable: tursoVectorDB.isAvailable(),
+            hasClient: !!tursoVectorDB.client,
+            environment: process.env.NODE_ENV || 'development'
+          });
         }
       } catch (error) {
         console.warn('⚠️ RAG Service: Turso unavailable, trying SQLite fallback:', error.message);
+        console.warn('⚠️ Turso error details:', {
+          message: error.message,
+          stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+          environment: process.env.NODE_ENV || 'development'
+        });
       }
+    } else {
+      console.warn(`⚠️ RAG Service: Turso not available (isAvailable: ${tursoVectorDB.isAvailable()}), using fallback`);
     }
 
     // Priority 2: Try local SQLite (works locally)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SEO from '../../components/SEO';
 import MainLayout from '../../components/MainLayout';
+import { ChatWidget } from '../../components/ChatWidgets';
 import styles from './shopping-assistant.module.css';
 
 const EcommerceChatBot = () => {
@@ -528,7 +529,9 @@ const EcommerceChatBot = () => {
           brand: item.brand
         })) || [],
         // Store quick replies separately for bottom display
-        quick_replies: data.naturalResponse?.quick_replies || []
+        quick_replies: data.naturalResponse?.quick_replies || [],
+        // Store widgets for rich display
+        widgets: data.widgets || []
       };
 
       setMessages(prev => [...prev, botMessage]);
@@ -764,6 +767,15 @@ const EcommerceChatBot = () => {
                         );
                       }).filter(Boolean)}
                       
+                      {/* Widgets */}
+                      {message.widgets && message.widgets.length > 0 && (
+                        <div className={styles.widgetsContainer}>
+                          {message.widgets.map((widget, idx) => (
+                            <ChatWidget key={idx} widget={widget} />
+                          ))}
+                        </div>
+                      )}
+
                       {/* Product Cards with Add to Cart buttons */}
                       {message.products && message.products.length > 0 && (
                         <div className={styles.productCards}>

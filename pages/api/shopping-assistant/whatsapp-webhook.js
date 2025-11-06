@@ -4,10 +4,74 @@
 
 import { memoryService } from '../../../services/memoryService.js';
 
+// In-memory cache for processed message IDs (prevents duplicate processing)
+// In production, consider using Redis or a database for this
+const processedMessageIds = new Set();
+const PROCESSED_MESSAGE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Clean up old message IDs periodically (every hour)
+setInterval(() => {
+  // In a real implementation, you'd store timestamps and clean up
+  // For now, just log - the Set will grow but messages are small
+  if (processedMessageIds.size > 10000) {
+    console.log(`🧹 Processed message cache has ${processedMessageIds.size} entries, consider cleanup`);
+  }
+}, 60 * 60 * 1000);
+
+// Disable body parsing to access raw body for signature verification
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+// Helper to parse body manually
+async function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch (e) {
+        resolve(body); // Return as string if not valid JSON
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   console.log('🔍 WhatsApp webhook called with method:', req.method);
   console.log('🔍 Request headers:', req.headers);
-  console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
+  
+  // Parse body manually to preserve raw body for signature verification
+  let rawBody = '';
+  let parsedBody = null;
+  
+  if (req.method === 'POST') {
+    // Read raw body
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    rawBody = Buffer.concat(chunks).toString('utf8');
+    
+    // Parse JSON for processing
+    try {
+      parsedBody = JSON.parse(rawBody);
+      console.log('🔍 Request body:', JSON.stringify(parsedBody, null, 2));
+    } catch (e) {
+      console.log('🔍 Request body (raw):', rawBody);
+      parsedBody = rawBody;
+    }
+    
+    // Store raw body for signature verification
+    req.rawBody = rawBody;
+    req.body = parsedBody;
+  }
 
   // Handle webhook verification (GET request)
   if (req.method === 'GET') {
@@ -76,7 +140,12 @@ async function handleIncomingWebhook(req, res) {
       if (isStatusUpdate) {
         // For status updates, log but don't reject - they're just delivery notifications
         console.log('⚠️ Status update signature verification failed, but processing anyway (status updates may use different signatures)');
+      } else if (process.env.NODE_ENV !== 'production' || !process.env.WHATSAPP_APP_SECRET) {
+        // In development or if app secret is not configured, allow the request but log the failure
+        // This is useful for testing with ngrok or local development
+        console.log('⚠️ Webhook signature verification failed, but allowing in development mode');
       } else {
+        // In production with app secret configured, reject invalid signatures
         console.log('❌ Webhook signature verification failed');
         return res.status(401).json({ error: 'Unauthorized' });
       }
@@ -102,14 +171,16 @@ async function handleIncomingWebhook(req, res) {
             // Check if this is a status update (delivery/read receipts) or incoming message
             if (value.statuses && value.statuses.length > 0) {
               // This is a status update (delivery receipt, read receipt, etc.)
-              console.log('📊 Processing status update');
+              // IMPORTANT: Status updates should NOT trigger message processing
+              console.log('📊 Processing status update (will not trigger message handling)');
               await processStatusUpdate(value);
+              continue; // Skip message processing for status updates
             } else if (value.messages && value.messages.length > 0) {
               // This is an incoming message
               console.log('📨 Processing incoming message');
               await processIncomingMessages(value);
             } else {
-              console.log('⚠️ Unknown message type in webhook');
+              console.log('⚠️ Unknown message type in webhook (no statuses or messages)');
             }
           }
         }
@@ -150,15 +221,18 @@ function verifyWebhookSignature(req) {
     // Create expected signature using HMAC-SHA256
     const crypto = require('crypto');
     
-    // Handle body stringification - Next.js might parse it already
+    // Use raw body if available (preserved from before JSON parsing)
+    // WhatsApp calculates signature on the raw request body bytes
     let bodyString;
-    if (typeof req.body === 'string') {
+    if (req.rawBody) {
+      // Use the raw body we captured before parsing
+      bodyString = req.rawBody;
+    } else if (typeof req.body === 'string') {
       bodyString = req.body;
     } else if (Buffer.isBuffer(req.body)) {
       bodyString = req.body.toString('utf8');
     } else {
-      // Get raw body if available (Next.js might have parsed it)
-      // Try to get original body from request
+      // Fallback: stringify the parsed body (may not match exactly)
       bodyString = JSON.stringify(req.body);
     }
     
@@ -283,8 +357,16 @@ async function handleIncomingMessage(message, contact, receivingPhoneNumberId = 
     console.log('👤 Contact info:', JSON.stringify(contact, null, 2));
     console.log('📱 Receiving phone number ID (will use for replies):', receivingPhoneNumberId);
 
+    const messageId = message.id;
+    
+    // Check if this message was already processed (deduplication)
+    if (processedMessageIds.has(messageId)) {
+      console.log(`⏭️ Message ${messageId} already processed, skipping duplicate`);
+      return; // Skip duplicate message
+    }
+
     const messageData = {
-      id: message.id,
+      id: messageId,
       from: message.from,
       name: contact?.profile?.name || 'Unknown',
       message: message.text?.body || '',
@@ -301,8 +383,14 @@ async function handleIncomingMessage(message, contact, receivingPhoneNumberId = 
     // Only process text messages
     if (message.type !== 'text' || !messageData.message.trim()) {
       console.log('⏭️ Skipping non-text or empty message');
+      // Still mark as processed to avoid reprocessing
+      processedMessageIds.add(messageId);
       return;
     }
+
+    // Mark message as being processed immediately to prevent race conditions
+    processedMessageIds.add(messageId);
+    console.log(`✅ Marked message ${messageId} as processed`);
 
     // Store message in database (implement your preferred storage solution)
     await storeMessage(messageData);
@@ -327,22 +415,40 @@ async function handleIncomingMessage(message, contact, receivingPhoneNumberId = 
       return;
     }
     
+    // Track if we sent an acknowledgment to prevent duplicate messages on error
+    let acknowledgmentSentPromise = null;
+    let acknowledgmentSent = false;
+    
     // Send instant human-like acknowledgment while AI processes
     const instantAck = getHumanLikeAcknowledgment(messageData.message);
     if (instantAck) {
       console.log('⚡ Sending instant human acknowledgment...');
-      // Send without waiting - fire and forget so it doesn't delay AI processing
-      sendWhatsAppMessage(messageData.from, instantAck, receivingPhoneNumberId).catch(err => {
-        console.error('⚠️ Failed to send instant acknowledgment:', err);
-      });
+      // Create a promise that tracks if acknowledgment was successfully sent
+      acknowledgmentSentPromise = sendWhatsAppMessage(messageData.from, instantAck, receivingPhoneNumberId)
+        .then(() => {
+          acknowledgmentSent = true;
+          console.log('✅ Instant acknowledgment sent successfully');
+          return true;
+        })
+        .catch(err => {
+          console.error('⚠️ Failed to send instant acknowledgment:', err);
+          acknowledgmentSent = false; // Mark as not sent if it failed
+          return false;
+        });
+      // Don't await - let it run in background
     }
     
     // Trigger AI product recommendation using production API
-    await triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId);
+    // Pass acknowledgment info so error handler can avoid duplicate messages
+    await triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId, {
+      acknowledgmentSent: () => acknowledgmentSent, // Use function to get current value
+      acknowledgmentPromise: acknowledgmentSentPromise
+    });
 
     console.log('✅ Successfully processed WhatsApp message:', messageData.id);
   } catch (error) {
     console.error('❌ Error handling incoming message:', error);
+    // Note: Message is already marked as processed, so errors won't cause duplicate processing
   }
 }
 
@@ -560,9 +666,10 @@ async function storeMessage(messageData) {
 }
 
 // Trigger AI-Integrated recommendation using Groq LLM + RAG + Multi-Agent
-async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId = null) {
+async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumberId = null, ackInfo = {}) {
   const startTime = Date.now();
   const TIMEOUT_MS = 30000; // 30 second timeout
+  const { acknowledgmentSent = () => false, acknowledgmentPromise = null } = ackInfo;
   
   try {
     console.log('🤖 Triggering AI-integrated recommendation for:', messageData.from);
@@ -665,19 +772,39 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
       console.error('❌ AI recommendation failed:', result.error);
       console.error('❌ Full error details:', JSON.stringify(result, null, 2));
       
-      // Determine error type and provide helpful message
-      let errorMsg = "I'm having trouble processing your request right now.";
-      if (result.error) {
-        if (result.error.includes('timeout') || result.error.includes('time')) {
-          errorMsg = "I'm taking longer than expected to process your request. Please try again in a moment.";
-        } else if (result.error.includes('rate limit') || result.error.includes('429')) {
-          errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
-        } else if (result.error.includes('not found') || result.error.includes('404')) {
-          errorMsg = "I couldn't find what you're looking for. Could you please try rephrasing your request?";
+      // Wait for acknowledgment to complete before sending error (to avoid race condition)
+      let ackWasSent = false;
+      if (acknowledgmentPromise) {
+        try {
+          ackWasSent = await acknowledgmentPromise;
+        } catch (err) {
+          // Acknowledgment failed, we can send error message
+          ackWasSent = false;
         }
       }
       
-      await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
+      // Check current status (in case promise resolved but function didn't update)
+      const currentAckStatus = typeof acknowledgmentSent === 'function' ? acknowledgmentSent() : ackWasSent;
+      
+      // Only send error message if we didn't already send an acknowledgment
+      // If acknowledgment was sent, it's already user-friendly, so skip error message to avoid duplicates
+      if (!currentAckStatus && !ackWasSent) {
+        // Determine error type and provide helpful message
+        let errorMsg = "I'm having trouble processing your request right now.";
+        if (result.error) {
+          if (result.error.includes('timeout') || result.error.includes('time')) {
+            errorMsg = "I'm taking longer than expected to process your request. Please try again in a moment.";
+          } else if (result.error.includes('rate limit') || result.error.includes('429')) {
+            errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
+          } else if (result.error.includes('not found') || result.error.includes('404')) {
+            errorMsg = "I couldn't find what you're looking for. Could you please try rephrasing your request?";
+          }
+        }
+        
+        await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
+      } else {
+        console.log('⏭️ Skipping error message - acknowledgment already sent to avoid duplicate');
+      }
       return;
     }
     
@@ -705,25 +832,45 @@ async function triggerAIIntegratedRecommendation(messageData, receivingPhoneNumb
       query: messageData.message?.substring(0, 100)
     });
     
-    // Determine appropriate error message based on error type
-    let errorMsg = "I'm sorry, I'm having trouble processing your request right now.";
-    
-    if (error.message.includes('timeout')) {
-      errorMsg = "I'm taking longer than expected. Please try a simpler request or try again in a moment.";
-    } else if (error.message.includes('fetch') || error.message.includes('network')) {
-      errorMsg = "I'm having connection issues. Please try again in a moment.";
-    } else if (error.message.includes('rate limit') || error.message.includes('429')) {
-      errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
-    } else if (error.message.includes('API key') || error.message.includes('unauthorized')) {
-      errorMsg = "I'm experiencing a technical issue. Our team has been notified.";
-      console.error('🚨 CRITICAL: API key or authentication issue detected');
+    // Wait for acknowledgment to complete before sending error (to avoid race condition)
+    let ackWasSent = false;
+    if (acknowledgmentPromise) {
+      try {
+        ackWasSent = await acknowledgmentPromise;
+      } catch (err) {
+        // Acknowledgment failed, we can send error message
+        ackWasSent = false;
+      }
     }
     
-    try {
-      await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
-    } catch (sendError) {
-      console.error('❌ Failed to send error message:', sendError);
-      // Log but don't throw - we don't want to break the webhook
+    // Check current status (in case promise resolved but function didn't update)
+    const currentAckStatus = typeof acknowledgmentSent === 'function' ? acknowledgmentSent() : ackWasSent;
+    
+    // Only send error message if we didn't already send an acknowledgment
+    // If acknowledgment was sent, it's already user-friendly, so skip error message to avoid duplicates
+    if (!currentAckStatus && !ackWasSent) {
+      // Determine appropriate error message based on error type
+      let errorMsg = "I'm sorry, I'm having trouble processing your request right now.";
+      
+      if (error.message.includes('timeout')) {
+        errorMsg = "I'm taking longer than expected. Please try a simpler request or try again in a moment.";
+      } else if (error.message.includes('fetch') || error.message.includes('network')) {
+        errorMsg = "I'm having connection issues. Please try again in a moment.";
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        errorMsg = "I'm handling many requests right now. Please try again in a few moments.";
+      } else if (error.message.includes('API key') || error.message.includes('unauthorized')) {
+        errorMsg = "I'm experiencing a technical issue. Our team has been notified.";
+        console.error('🚨 CRITICAL: API key or authentication issue detected');
+      }
+      
+      try {
+        await sendWhatsAppMessage(messageData.from, errorMsg + " Please try again in a moment.", receivingPhoneNumberId);
+      } catch (sendError) {
+        console.error('❌ Failed to send error message:', sendError);
+        // Log but don't throw - we don't want to break the webhook
+      }
+    } else {
+      console.log('⏭️ Skipping error message - acknowledgment already sent to avoid duplicate');
     }
   }
 }

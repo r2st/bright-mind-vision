@@ -1,0 +1,401 @@
+.widget {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.widgetHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.widgetIcon {
+  font-size: 1.5rem;
+}
+
+.widgetHeader h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.widgetContent {
+  color: #4b5563;
+}
+
+.emptyMessage {
+  text-align: center;
+  color: #9ca3af;
+  padding: 1rem 0;
+}
+
+/* Cart Widget Styles */
+.cartItems {
+  margin-bottom: 1rem;
+}
+
+.cartItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cartItem:last-child {
+  border-bottom: none;
+}
+
+.cartItemInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.cartItemEmoji {
+  font-size: 1.25rem;
+}
+
+.cartItemDetails {
+  flex: 1;
+}
+
+.cartItemTitle {
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.cartItemMeta {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.cartItemSubtotal {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.cartSummary {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.summaryTotal {
+  font-weight: 600;
+  font-size: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.5rem;
+  color: #1f2937;
+}
+
+/* Order Widget Styles */
+.orderInfo {
+  margin-bottom: 1rem;
+}
+
+.orderInfoRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.orderLabel {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.orderValue {
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.orderStatus {
+  font-weight: 600;
+}
+
+.orderItems {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.orderItems h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.orderItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.trackingInfo,
+.paymentInfo {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Order History Widget Styles */
+.orderHistoryList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.orderHistoryItem {
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.orderHistoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.orderHistoryIcon {
+  font-size: 1.25rem;
+}
+
+.orderHistoryInfo {
+  flex: 1;
+}
+
+.orderHistoryId {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.orderHistoryDate {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.orderHistoryTotal {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.orderHistoryItems {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.orderHistoryItemDetail {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.orderHistoryMore {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Transaction History Widget Styles */
+.transactionList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.transactionItem {
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.transactionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.transactionIcon {
+  font-size: 1.25rem;
+}
+
+.transactionInfo {
+  flex: 1;
+}
+
+.transactionType {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.transactionDate {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.transactionAmount {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.transactionDescription {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin-top: 0.5rem;
+}
+
+.transactionMeta {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.transactionSummary {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+/* Product Details Widget Styles */
+.productBrand {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.productPrice {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+.productRating {
+  font-size: 0.95rem;
+  color: #4b5563;
+  margin-bottom: 0.75rem;
+}
+
+.productDescription {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.productFeatures {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.productFeatures h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.productFeatures ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.productFeatures li {
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.productAttributes {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.productAttributes h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.attributeRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.attributeRow:last-child {
+  border-bottom: none;
+}
+
+.attributeKey {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.attributeValue {
+  color: #1f2937;
+}
+
+/* Widget Actions */
+.widgetActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.widgetButton {
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.widgetButton:hover {
+  background: #2563eb;
+}
+
+.widgetButton:active {
+  background: #1d4ed8;
+}
+

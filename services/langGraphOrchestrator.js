@@ -2,6 +2,8 @@ import { llmProvider } from './llmProvider.js';
 import { memoryService } from './memoryService.js';
 import { enhancedRAGService } from './enhancedRAGService.js';
 import { tursoOrderService } from './tursoOrderService.js';
+import { advancedIntentDetector } from './advancedIntentDetector.js';
+import { widgetService } from './widgetService.js';
 
 /**
  * LangGraph-inspired State-Based Orchestrator
@@ -1046,25 +1048,37 @@ class LangGraphOrchestrator {
     
     // STEP 2: If not found or no SKU, search by product name to get candidate products
     if (!product && args.product_name) {
-      console.log(`🔍 Searching for product by name: "${args.product_name}"`);
+      // Clean product name - remove quotes and extra whitespace
+      const cleanProductName = args.product_name.replace(/^["']+|["']+$/g, '').trim();
+      console.log(`🔍 Searching for product by name: "${cleanProductName}" (original: "${args.product_name}")`);
       
       // First try direct catalog search to bypass intent classification
-      let productsByName = await enhancedRAGService.searchProductsInCatalog(args.product_name);
-      console.log(`📦 Catalog search found ${productsByName.length} candidate products for "${args.product_name}"`);
+      let productsByName = await enhancedRAGService.searchProductsInCatalog(cleanProductName);
+      console.log(`📦 Catalog search for "${cleanProductName}" found ${productsByName.length} candidate products`);
       
       // If catalog search doesn't find anything, try with intent-based search as fallback
       if (productsByName.length === 0) {
         console.log(`⚠️ Catalog search returned 0 results, trying intent-based search...`);
-        productsByName = await enhancedRAGService.searchProducts(args.product_name, {});
+        productsByName = await enhancedRAGService.searchProducts(cleanProductName, {});
         console.log(`📦 Intent-based search found ${productsByName.length} candidate products`);
+      }
+      
+      // Also try searching without quotes in case quotes are causing issues
+      if (productsByName.length === 0 && args.product_name !== cleanProductName) {
+        console.log(`⚠️ Trying search with original name (with quotes)...`);
+        const originalSearch = await enhancedRAGService.searchProductsInCatalog(args.product_name);
+        if (originalSearch.length > 0) {
+          productsByName = originalSearch;
+          console.log(`📦 Found ${productsByName.length} products with original name`);
+        }
       }
       
       if (productsByName.length > 0) {
         console.log(`📋 Candidate products:`, productsByName.map(p => `${p.sku} - ${p.title}`).join(', '));
       }
       
-      // Try multiple matching strategies
-      const productNameLower = args.product_name.toLowerCase().trim();
+      // Try multiple matching strategies (use cleaned name)
+      const productNameLower = cleanProductName.toLowerCase().trim();
       
       // Strategy 1: Exact match (case-insensitive)
       product = productsByName.find(p => 
@@ -1118,10 +1132,33 @@ class LangGraphOrchestrator {
     
     if (!product) {
       console.error(`❌ Product not found: "${args.product_name || args.product_sku}"`);
-      return {
-        success: false,
-        message: `Product "${args.product_name || args.product_sku}" not found. Could you please specify the product name or SKU?`
-      };
+      console.error(`🔍 Debug info:`, {
+        product_name: args.product_name,
+        product_sku: args.product_sku,
+        cleanProductName: args.product_name ? args.product_name.replace(/^["']+|["']+$/g, '').trim() : null,
+        environment: process.env.NODE_ENV || 'development',
+        tursoAvailable: 'N/A' // Check logs for Turso availability
+      });
+      
+      // Try one more time with a broader search using just the brand or key words
+      if (args.product_name) {
+        const words = args.product_name.split(/\s+/).filter(w => w.length > 3);
+        if (words.length > 1) {
+          console.log(`🔄 Trying broader search with key words: ${words.join(' ')}`);
+          const broaderSearch = await enhancedRAGService.searchProductsInCatalog(words.join(' '));
+          if (broaderSearch.length > 0) {
+            console.log(`✅ Broader search found ${broaderSearch.length} products, using first match`);
+            product = broaderSearch[0];
+          }
+        }
+      }
+      
+      if (!product) {
+        return {
+          success: false,
+          message: `Product "${args.product_name || args.product_sku}" not found. Could you please specify the product name or SKU?`
+        };
+      }
     }
     
     console.log(`✅ Final product selected: ${product.sku} - ${product.title}`);
@@ -2570,11 +2607,43 @@ Recommend the top 3 products with explanations.`
     // Store original query for logging
     const originalQuery = query || '';
     
-    // Quick, non-LLM classification for resilience (handles greetings without LLM)
+    // OPTION: Use advanced intent detection pipeline (production-grade)
+    // Set USE_ADVANCED_INTENT_DETECTION=true in env to enable
+    const useAdvanced = process.env.USE_ADVANCED_INTENT_DETECTION === 'true';
+    
+    if (useAdvanced) {
+      console.log(`🚀 Using Advanced Intent Detection Pipeline`);
+      try {
+        const advancedResult = await advancedIntentDetector.detectIntent(query, state);
+        state.currentIntent = advancedResult.intent;
+        state.intentConfidence = advancedResult.confidence;
+        state.intentSource = advancedResult.source;
+        state.intentMetadata = advancedResult.metadata;
+        
+        console.log(`✅ Advanced Intent Detection:`, {
+          intent: advancedResult.intent,
+          confidence: advancedResult.confidence,
+          source: advancedResult.source,
+          level1: advancedResult.level1,
+          duration: advancedResult.metadata.duration
+        });
+        
+        return state;
+      } catch (error) {
+        console.error('❌ Advanced intent detection failed, falling back to standard:', error.message);
+        // Fall through to standard detection
+      }
+    }
+    
+    // Standard intent detection (existing implementation)
+    // Quick, non-LLM classification for simple greetings (optimization)
+    // Using simple string matching instead of regex for better performance
     const q = (query || '').toLowerCase().trim();
-    const isGreeting = /^(hi|hello|hey|hola|how are you\b|good (morning|afternoon|evening)\b)/i.test(q);
-    if (isGreeting) {
+    const simpleGreetings = ['hi', 'hello', 'hey', 'hola', 'good morning', 'good afternoon', 'good evening'];
+    const isSimpleGreeting = simpleGreetings.some(greeting => q === greeting || q.startsWith(greeting + ' '));
+    if (isSimpleGreeting) {
       state.currentIntent = 'greeting';
+      console.log(`✅ Quick greeting detection (skipping LLM)`);
       return state;
     }
     
@@ -2899,7 +2968,7 @@ Do NOT add explanations, comments, or any other text.`
         // Parse fallback - LLM returned response but we couldn't parse it
         console.error(`⚠️ Intent classification parse error: ${parseError.message}`);
         console.error(`   Raw response was: "${rawContent?.substring(0, 200)}..."`);
-        state.currentIntent = this.intelligentFallback(query, state);
+        state.currentIntent = await this.intelligentFallback(query, state);
       }
     } catch (llmError) {
       // Provider error fallback – LLM provider failed completely
@@ -2910,7 +2979,7 @@ Do NOT add explanations, comments, or any other text.`
         query: query.substring(0, 100),
         provider: llmProvider.provider || 'unknown'
       });
-      state.currentIntent = this.intelligentFallback(query, state);
+      state.currentIntent = await this.intelligentFallback(query, state);
     }
 
     return state;
@@ -2918,98 +2987,121 @@ Do NOT add explanations, comments, or any other text.`
 
   /**
    * Intelligent fallback intent classification when LLM fails
-   * Uses keyword-based heuristics to classify intent
+   * Uses lightweight LLM call first, then context-aware keyword matching
    */
-  intelligentFallback(query, state) {
+  async intelligentFallback(query, state) {
     const queryLower = (query || '').toLowerCase().trim();
     console.log(`🔄 Using intelligent fallback for: "${query}"`);
 
-    // Check for specific product names (brand + model patterns)
-    const productNamePatterns = [
-      /(?:tell me|about|details|what is|info about)\s+(?:the\s+)?(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van cleef|arpels|bvlgari|serpenti|classic flap|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster)/i,
-      /(?:^|\s)(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van cleef|arpels|bvlgari)\s+(?:classic|serpenti|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster|flap|bag|watch)/i
-    ];
-    
-    if (productNamePatterns.some(p => p.test(query))) {
-      console.log(`   → Detected product name, classifying as product_details`);
-      return 'product_details';
+    // STEP 1: Try lightweight LLM fallback (fast, simple classification)
+    try {
+      const contextInfo = [];
+      if (state.context?.currentProduct) {
+        contextInfo.push(`Current product: ${state.context.currentProduct.title}`);
+      }
+      if (state.context?.lastCategory) {
+        contextInfo.push(`Last category: ${state.context.lastCategory}`);
+      }
+      
+      const fallbackResponse = await llmProvider.chatCompletion([
+        {
+          role: 'system',
+          content: `Classify this query into ONE intent: product_search, product_details, cart_operation, category_browse, greeting, or product_search if unsure.
+
+Rules:
+- "tell me more about [product name]" = product_details
+- "[product name]" alone = product_details  
+- "add to cart" = cart_operation
+- "show me [category]" = category_browse
+- "hi/hello" = greeting
+- Generic searches = product_search
+
+${contextInfo.length > 0 ? `Context: ${contextInfo.join(', ')}` : ''}
+
+Respond with ONLY the intent name, nothing else.`
+        },
+        {
+          role: 'user',
+          content: query
+        }
+      ], {
+        model: 'primary',
+        temperature: 0.1,
+        max_tokens: 20
+      });
+
+      const fallbackIntent = (fallbackResponse.choices[0].message.content || '').trim().toLowerCase();
+      const validIntents = ['product_search', 'product_details', 'cart_operation', 'category_browse', 'greeting', 'category_browse_more'];
+      
+      if (validIntents.includes(fallbackIntent)) {
+        console.log(`   → Lightweight LLM fallback classified as: ${fallbackIntent}`);
+        return fallbackIntent;
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Lightweight LLM fallback failed: ${error.message}`);
     }
 
-    // Check for "tell me more about" pattern
-    if (/tell\s+me\s+(?:more\s+)?about\s+/i.test(query)) {
-      console.log(`   → Detected "tell me about" pattern, classifying as product_details`);
-      return 'product_details';
-    }
+    // STEP 2: Context-aware keyword matching (only if LLM fails)
+    // Check context first for better accuracy
+    const hasProductContext = !!(state.context?.currentProduct || state.context?.recentProducts?.length);
+    const hasCategoryContext = !!state.context?.lastCategory;
 
-    // Intent keyword mappings (order matters - more specific first)
-    const intentKeywords = {
-      // Cart & Checkout
-      cart_operation: ['cart', 'add to', 'remove from', 'delete from', 'view cart', 'show cart', 'my cart', 'empty cart', 'clear cart'],
-      checkout: ['checkout', 'buy now', 'place order', 'purchase', 'complete purchase'],
-      payment_options: ['payment', 'installment', 'financing', 'pay', 'credit', 'debit'],
-      
-      // Orders & Returns
-      order_tracking: ['track', 'where is', 'order status', 'shipment', 'tracking'],
-      order_history: ['my orders', 'order history', 'past purchases', 'previous orders'],
-      order_cancellation: ['cancel order', 'cancel my'],
-      return_request: ['return this', 'i want to return', 'process return'],
-      return_policy_inquiry: ['return policy', 'refund policy', 'can i return', 'return?'],
-      delivery_inquiry: ['when will it arrive', 'delivery time', 'delivery date', 'when delivered'],
-      
-      // Product Information
-      size_inquiry: ['size', 'sizing', 'fit', 'measurement', 'size chart', 'does it run', 'too small', 'too large'],
-      warranty_inquiry: ['warranty', 'guarantee', 'protection', 'covered'],
-      care_instructions: ['care', 'clean', 'maintain', 'care instructions', 'how to clean', 'cleaning'],
-      product_customization: ['engrave', 'monogram', 'customize', 'personalize', 'custom'],
-      styling_advice: ['style', 'styling', 'how to wear', 'what to wear', 'outfit'],
-      product_attribute_inquiry: ['color', 'colours', 'material', 'fabric', 'leather', 'metal', 'dimensions'],
-      product_qa: ['waterproof', 'water resistant', 'how long', 'last', 'durable', 'quality'],
-      
-      // Product Selection
-      gift_recommendation: ['gift', 'present', 'gift for', 'gift ideas', 'anniversary gift', 'wedding gift'],
-      special_occasion_inquiry: ['wedding', 'anniversary', 'birthday', 'graduation', 'occasion'],
-      product_comparison: ['compare', 'difference', 'vs', 'versus', 'better', 'which is'],
-      product_recommendation_request: ['recommend', 'which one', 'suggest', 'what do you recommend'],
-      use_case_recommendation: ['for work', 'for sports', 'for travel', 'for everyday', 'use case'],
-      product_objection_handling: ['too expensive', 'not sure', 'concerned', 'worried', 'doubt'],
-      
-      // Availability
-      stock_check: ['in stock', 'available', 'availability', 'have it', 'do you have'],
-      waitlist_request: ['waitlist', 'notify when', 'alert when', 'let me know when'],
-      product_alert: ['alert', 'notify', 'back in stock', 'when available'],
-      
-      // Services
-      shipping_calculation: ['shipping', 'delivery cost', 'delivery fee', 'shipping fee'],
-      store_location: ['store', 'location', 'where is your', 'store hours', 'address'],
-      appointment_booking: ['appointment', 'schedule', 'book', 'visit', 'consultation'],
-      loyalty_program_inquiry: ['loyalty', 'rewards', 'membership', 'points', 'program'],
-      complaint_handling: ['complaint', 'problem', 'issue', 'not satisfied', 'disappointed'],
-      price_match: ['price match', 'competitor price', 'match price'],
-      coupon_application: ['coupon', 'promo', 'promotional', 'discount code', 'voucher'],
-      
-      // Account
-      wishlist_operation: ['wishlist', 'wish list', 'save for later'],
-      preference_update: ['prefer', 'preference', 'i like', 'update preferences'],
-      upselling_request: ['complementary', 'goes with', 'pair with', 'also need'],
-      
-      // Product Discovery
-      category_browse_more: ['more', 'show me more', 'more please', 'more products'],
-      category_browse: ['browse', 'show me', 'display', 'list'],
-      brand_inquiry: ['brands', 'what brands', 'which brands', 'tell me about [brand]'],
-    };
-
-    // Check keywords in order of specificity
-    for (const [intent, keywords] of Object.entries(intentKeywords)) {
-      if (keywords.some(keyword => queryLower.includes(keyword))) {
-        console.log(`   → Detected keyword match for: ${intent}`);
-        return intent;
+    // Context-aware product detection
+    if (queryLower.includes('tell me more') || queryLower.includes('tell me about') || queryLower.includes('about')) {
+      if (hasProductContext) {
+        console.log(`   → Context-aware: Has product context, classifying as product_details`);
+        return 'product_details';
+      }
+      if (hasCategoryContext) {
+        console.log(`   → Context-aware: Has category context, classifying as category_browse_more`);
+        return 'category_browse_more';
       }
     }
 
-    // Check for product details patterns
-    if (/^(what is|tell me|details|info|about)\s+/i.test(query) && query.length > 10) {
-      console.log(`   → Generic "about" query, classifying as product_details`);
-      return 'product_details';
+    // Simple keyword checks (only most critical ones)
+    if (queryLower.includes('cart') || queryLower.includes('add to') || queryLower.includes('remove from')) {
+      console.log(`   → Keyword match: cart_operation`);
+      return 'cart_operation';
+    }
+
+    if (queryLower.includes('track') || queryLower.includes('order status')) {
+      console.log(`   → Keyword match: order_tracking`);
+      return 'order_tracking';
+    }
+
+    if (queryLower.includes('return') && (queryLower.includes('policy') || queryLower.includes('can i'))) {
+      console.log(`   → Keyword match: return_policy_inquiry`);
+      return 'return_policy_inquiry';
+    }
+
+    if (queryLower.includes('size') || queryLower.includes('fit') || queryLower.includes('sizing')) {
+      console.log(`   → Keyword match: size_inquiry`);
+      return 'size_inquiry';
+    }
+
+    if (queryLower.includes('warranty') || queryLower.includes('guarantee')) {
+      console.log(`   → Keyword match: warranty_inquiry`);
+      return 'warranty_inquiry';
+    }
+
+    if (queryLower.includes('gift') || queryLower.includes('present')) {
+      console.log(`   → Keyword match: gift_recommendation`);
+      return 'gift_recommendation';
+    }
+
+    if (queryLower.includes('compare') || queryLower.includes('difference') || queryLower.includes('vs')) {
+      console.log(`   → Keyword match: product_comparison`);
+      return 'product_comparison';
+    }
+
+    if (queryLower.includes('more') && hasCategoryContext) {
+      console.log(`   → Context-aware: category_browse_more`);
+      return 'category_browse_more';
+    }
+
+    if (queryLower.includes('show me') || queryLower.includes('browse')) {
+      console.log(`   → Keyword match: category_browse`);
+      return 'category_browse';
     }
 
     // Default fallback
@@ -3063,27 +3155,29 @@ Do NOT add explanations, comments, or any other text.`
     
     // Extract product name early for product_details intent
     if (state.currentIntent === 'product_details' && !state.detectedProductName) {
+      console.log(`🔍 Extracting product name from query: "${query}"`);
+      
       // Try to extract product name from various patterns (most specific first)
       const productNamePatterns = [
-        // Pattern: "[Product Name], tell me more about it" (with comma)
-        /^([^,]+?),\s*(?:tell me more|tell me about|details|info)/i,
+        // Pattern: "tell me more about [Product Name]" (with or without quotes)
+        /tell\s+me\s+(?:more\s+)?about\s+["']?([^"',]+?)["']?(?:\s*,\s*(?:tell|it)|\s*$)/i,
+        // Pattern: "[Product Name], tell me more about it" (with comma, with or without quotes)
+        /^["']?([^,"']+?)["']?,\s*(?:tell me more|tell me about|details|info)/i,
         // Pattern: "[Product Name] tell me more" (without comma)
-        /^([^,]+?)\s+(?:tell me more|tell me about|details|info)/i,
-        // Pattern: "tell me more about [Product Name]"
-        /tell\s+me\s+(?:more\s+)?about\s+(.+?)(?:\s*,\s*(?:tell|it)|\s*$)/i,
+        /^["']?([^,"']+?)["']?\s+(?:tell me more|tell me about|details|info)/i,
         // Pattern: "what is [Product Name]"
-        /what\s+is\s+(.+?)(?:\s*$|\s*,)/i,
+        /what\s+is\s+["']?([^"',]+?)["']?(?:\s*$|\s*,)/i,
         // Pattern: "[Product Name] details"
-        /^(.+?)\s+details/i,
+        /^["']?([^"',]+?)["']?\s+details/i,
         // Pattern: Just product name at start (brand + model) - improved to catch more variations
-        /^(?:the\s+)?(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis\s+vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van\s+cleef|arpels|bvlgari)\s+(?:classic|serpenti|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster|flap|bag|watch|saddle|medium|small|large|mini|maxi).*?(?=\s*,|\s+$|$)/i
+        /^(?:the\s+)?(?:chane[^ls]|bulgari|rolex|prada|herm[eè]s|gucci|louis\s+vuitton|dior|cartier|omega|audemars|piguet|vacheron|constantin|tiffany|van\s+cleef|arpels|bvlgari)\s+(?:classic|serpenti|submariner|galler[ia]|birkin|kelly|saffiano|tubogas|datejust|daytona|speedmaster|flap|bag|watch|saddle|medium|small|large|mini|maxi|moonwatch).*?(?=\s*,|\s+$|$)/i
       ];
       
       for (const pattern of productNamePatterns) {
         const match = query.match(pattern);
         if (match && match[1]) {
           let extractedName = match[1].trim();
-          // Remove quotes if present
+          // Remove quotes if present (both single and double)
           extractedName = extractedName.replace(/^["']+|["']+$/g, '').trim();
           // Remove trailing punctuation and whitespace
           extractedName = extractedName.replace(/[.,;:!?\s]+$/, '').trim();
@@ -3093,7 +3187,7 @@ Do NOT add explanations, comments, or any other text.`
           
           if (extractedName && extractedName.length > 3) {
             state.detectedProductName = extractedName;
-            console.log(`📝 Early extraction: Product name from query: "${extractedName}"`);
+            console.log(`✅ Early extraction: Product name from query: "${extractedName}"`);
             break;
           }
         }
@@ -3103,13 +3197,32 @@ Do NOT add explanations, comments, or any other text.`
       if (!state.detectedProductName && query.includes(',') && query.includes('tell')) {
         const parts = query.split(',');
         if (parts.length >= 2) {
-          const potentialName = parts[0].trim();
+          let potentialName = parts[0].trim();
           const rest = parts.slice(1).join(',').toLowerCase();
           if (rest.includes('tell') && potentialName.length > 5) {
-            state.detectedProductName = potentialName.replace(/^["']+|["']+$/g, '').trim();
-            console.log(`📝 Fallback extraction: Product name from query: "${state.detectedProductName}"`);
+            // Remove quotes
+            potentialName = potentialName.replace(/^["']+|["']+$/g, '').trim();
+            state.detectedProductName = potentialName;
+            console.log(`✅ Fallback extraction: Product name from query: "${state.detectedProductName}"`);
           }
         }
+      }
+      
+      // Final fallback: if query contains "about" and looks like a product query, extract after "about"
+      if (!state.detectedProductName && query.toLowerCase().includes('about')) {
+        const aboutMatch = query.match(/about\s+["']?([^"']+?)["']?(?:\s*$|\s*,|\s+and)/i);
+        if (aboutMatch && aboutMatch[1]) {
+          let extracted = aboutMatch[1].trim();
+          extracted = extracted.replace(/^["']+|["']+$/g, '').trim();
+          if (extracted.length > 5) {
+            state.detectedProductName = extracted;
+            console.log(`✅ Final fallback extraction: Product name from query: "${state.detectedProductName}"`);
+          }
+        }
+      }
+      
+      if (!state.detectedProductName) {
+        console.warn(`⚠️ Could not extract product name from query: "${query}"`);
       }
     }
     
@@ -3533,8 +3646,26 @@ Use this context to make responses more natural and context-aware. Reference pre
           
           const toolArgs = { customer_id: state.customerId };
           
-          // First, try to extract product name from query if not already detected
-          if (!state.detectedProductName) {
+          // PRIORITY 1: Use already-found product from context (most reliable)
+          // Check referencedProduct first (set in toolExecutionNode when product is found)
+          if (state.referencedProduct) {
+            toolArgs.product_sku = state.referencedProduct.sku;
+            toolArgs.product_name = state.referencedProduct.title;
+            console.log(`🔧 Using referenced product from toolExecutionNode: ${state.referencedProduct.sku} - ${state.referencedProduct.title}`);
+          }
+          // Check currentProduct from context
+          else if (state.context?.currentProduct) {
+            toolArgs.product_sku = state.context.currentProduct.sku;
+            toolArgs.product_name = state.context.currentProduct.title;
+            console.log(`🔧 Using current product from context: ${state.context.currentProduct.sku} - ${state.context.currentProduct.title}`);
+          }
+          // PRIORITY 2: Use detected product name if available
+          else if (state.detectedProductName) {
+            toolArgs.product_name = state.detectedProductName;
+            console.log(`🔧 Using detected product name: ${state.detectedProductName}`);
+          }
+          // PRIORITY 3: Try to extract product name from query if not already detected
+          else {
             // Try to extract product name from various patterns
             const productNamePatterns = [
               // Pattern: "[Product Name], tell me more about it"
@@ -3613,24 +3744,13 @@ Use this context to make responses more natural and context-aware. Reference pre
               // Continue with product_name only
             }
           }
-          // Use referenced product if available
-          else if (state.referencedProduct) {
-            toolArgs.product_sku = state.referencedProduct.sku;
-            toolArgs.product_name = state.referencedProduct.title;
-            console.log(`🔧 Using referenced product: ${state.referencedProduct.title}`);
-          }
-          // Use current product if available
-          else if (state.context.currentProduct) {
-            toolArgs.product_sku = state.context.currentProduct.sku;
-            toolArgs.product_name = state.context.currentProduct.title;
-            console.log(`🔧 Using current product: ${state.context.currentProduct.title}`);
-          }
-          // Use first recent product as fallback
-          else if (state.context.recentProducts && state.context.recentProducts.length > 0) {
+          
+          // PRIORITY 4: Use first recent product as final fallback (only if no product found yet)
+          if (!toolArgs.product_name && !toolArgs.product_sku && state.context?.recentProducts && state.context.recentProducts.length > 0) {
             const firstProduct = state.context.recentProducts[0];
             toolArgs.product_sku = firstProduct.sku;
             toolArgs.product_name = firstProduct.title;
-            console.log(`🔧 Using first recent product: ${firstProduct.title}`);
+            console.log(`🔧 Using first recent product as final fallback: ${firstProduct.sku} - ${firstProduct.title}`);
           }
           
           if (toolArgs.product_name || toolArgs.product_sku) {
@@ -3641,8 +3761,29 @@ Use this context to make responses more natural and context-aware. Reference pre
               // Don't set toolResponse for structured results - let productDetailsResult be handled separately
               console.log(`✅ Product details retrieved: ${result.product?.title || 'Unknown'}`);
             } else {
-              state.toolResponse = result.message || 'Product not found';
-              console.warn(`⚠️ Product details not found: ${result.message}`);
+              // FALLBACK: If handleGetProductDetails failed but we have the product in context, use it directly
+              const fallbackProduct = state.referencedProduct || state.context?.currentProduct;
+              if (fallbackProduct && (fallbackProduct.sku === toolArgs.product_sku || fallbackProduct.title === toolArgs.product_name)) {
+                console.log(`⚠️ handleGetProductDetails failed, but using product from context as fallback`);
+                // Create a product details result from the context product
+                const price = typeof fallbackProduct.price === 'object' 
+                  ? fallbackProduct.price 
+                  : { amount: fallbackProduct.price || 0, currency: fallbackProduct.currency || 'AED' };
+                
+                state.productDetailsResult = {
+                  success: true,
+                  product: {
+                    ...fallbackProduct,
+                    price: price,
+                    comprehensiveDetails: fallbackProduct.description || 'A luxury timepiece from our collection.',
+                    attributes: fallbackProduct.attributes || {}
+                  }
+                };
+                console.log(`✅ Product details created from context: ${fallbackProduct.sku} - ${fallbackProduct.title}`);
+              } else {
+                state.toolResponse = result.message || 'Product not found';
+                console.warn(`⚠️ Product details not found: ${result.message}`);
+              }
             }
           } else {
             console.warn('⚠️ No product information available for get_product_details');
@@ -3756,6 +3897,26 @@ Use this context to make responses more natural and context-aware. Reference pre
             if (result.success) {
               state.cartResult = result;
               state.toolResponse = result.message || JSON.stringify(result);
+            }
+          }
+        }
+        // Check for cart-related queries even if intent is not cart_operation (e.g., misclassified as order_history)
+        else if ((state.currentIntent === 'order_history' || state.currentIntent === 'order_management') && query) {
+          const queryLower = (query || '').toLowerCase();
+          const cartKeywords = ['cart', 'basket', 'bag'];
+          const cartActionKeywords = ['show', 'view', 'see', 'display', 'my', 'what\'s in', 'what is in'];
+          
+          const hasCartKeyword = cartKeywords.some(keyword => queryLower.includes(keyword));
+          const hasCartAction = cartActionKeywords.some(keyword => queryLower.includes(keyword));
+          
+          if (hasCartKeyword && hasCartAction) {
+            console.log('🛒 Detected cart query despite order_history intent, forcing get_cart');
+            const result = await this.handleToolCall('get_cart', { customer_id: state.customerId });
+            if (result.success) {
+              state.cartResult = result;
+              state.toolResponse = result.message || JSON.stringify(result);
+              // Update intent to cart_operation for proper widget generation
+              state.currentIntent = 'cart_operation';
             }
           }
         } else {
@@ -4553,9 +4714,14 @@ Use this context to make responses more natural and context-aware. Reference pre
         metadata.cart = cartData;
       }
       
+      // Generate widgets based on state
+      const widgets = widgetService.generateWidgets(state);
+      console.log(`📦 Generated ${widgets.length} widgets:`, widgets.map(w => w.type).join(', '));
+      
       return {
         success: true,
         naturalResponse: state.response,
+        widgets: widgets.length > 0 ? widgets : undefined, // Only include if widgets exist
         metadata: metadata
       };
     }
@@ -4608,6 +4774,9 @@ Use this context to make responses more natural and context-aware. Reference pre
       }
     }
     
+    // Generate widgets for fallback response too
+    const widgets = widgetService.generateWidgets(state);
+    
     return {
       success: true,
       naturalResponse: {
@@ -4627,6 +4796,7 @@ Use this context to make responses more natural and context-aware. Reference pre
           ? ["Show me handbags", "Browse watches", "Explore jewelry", "View all products"]
           : ["Show me more", "Different category", "Get help"]
       },
+      widgets: widgets.length > 0 ? widgets : undefined,
       metadata: {
         intent: state.currentIntent,
         productsFound: products.length
